@@ -1,0 +1,66 @@
+version: '2'
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - forcetypeassert
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - goconst
+    - gocritic
+    - godot
+    - gosec
+    - intrange
+    - loggercheck
+    - mirror
+    - musttag
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - perfsprint
+    - prealloc
+    - predeclared
+    - reassign
+    - recvcheck
+    - sloglint
+    - spancheck
+    - tagalign
+    - testifylint
+    - thelper
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - wsl_v5
+  disable:
+    - cyclop
+    - depguard
+    - exhaustruct
+    - funlen
+    - gocognit
+    - ireturn
+    - maintidx
+    - nonamedreturns
+    - paralleltest
+    - varnamelen
+formatters:
+  enable:
+    - gofmt
+    - goimports
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs:
+    - vendor
+    - third_party
+    - tools
+    - generated
