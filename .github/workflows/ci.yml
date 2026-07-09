@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, production]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.26.5'
+  NODE_VERSION: '24.18.0'
+  PNPM_VERSION: '11.10.0'
+
+jobs:
+  quality:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.12.2
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Go vet
+        run: |
+          for dir in apps/api apps/operator apps/cli apps/workspace-manager pkg/api pkg/operator pkg/workspace pkg/auth; do
+            go vet ./$dir/...
+          done
+
+      - name: Go lint
+        run: |
+          for dir in apps/api apps/operator apps/cli apps/workspace-manager pkg/api pkg/operator pkg/workspace pkg/auth; do
+            golangci-lint run ./$dir/...
+          done
+
+      - name: Go test
+        run: |
+          for dir in apps/api apps/operator apps/cli apps/workspace-manager pkg/api pkg/operator pkg/workspace pkg/auth; do
+            go test -race -count=1 ./$dir/...
+          done
+
+      - name: Format check
+        run: pnpm prettier --check .
+
+      - name: Oxlint
+        run: pnpm oxlint . --ignore-path .gitignore -c .oxlintrc.json
+
+      - name: Build frontend
+        run: pnpm --filter dashboard build
+
+  docker:
+    needs: quality
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run:
+          docker build -f deploy/Dockerfile.api -t nimbuscore-api:${{ github.sha
+          }} .
+
+      - name: Build operator image
+        run:
+          docker build -f deploy/Dockerfile.operator -t nimbuscore-operator:${{
+          github.sha }} .
