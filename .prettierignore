@@ -1,0 +1,10 @@
+node_modules
+dist
+.nx
+coverage
+*.tsbuildinfo
+pnpm-lock.yaml
+go.work.sum
+**/*.go
+deploy
+**/.astro/
