@@ -1,0 +1,149 @@
+version: '3'
+
+vars:
+  PNPM: 'pnpm'
+  GO_MODULES:
+    'apps/api apps/operator apps/cli apps/workspace-manager pkg/api pkg/operator
+    pkg/workspace pkg/auth'
+  WEB_DIR: 'web/dashboard'
+
+tasks:
+  default:
+    desc: 'List all available tasks'
+    cmd: task --list
+
+  # Go
+  go:lint:
+    desc: 'Run golangci-lint on all Go modules'
+    cmds:
+      - |
+        for dir in {{.GO_MODULES}}; do
+          echo "→ Linting $dir"
+          golangci-lint run ./$dir/...
+        done
+
+  go:test:
+    desc: 'Run all Go tests with race detector'
+    cmds:
+      - |
+        for dir in {{.GO_MODULES}}; do
+          go test -race -count=1 ./$dir/...
+        done
+
+  go:test:cover:
+    desc: 'Run Go tests with coverage'
+    cmds:
+      - |
+        for dir in {{.GO_MODULES}}; do
+          go test -race -count=1 -coverprofile=coverage.out ./$dir/...
+        done
+      - 'go tool cover -html=coverage.out -o coverage.html'
+
+  go:build:
+    desc: 'Build all Go binaries'
+    cmds:
+      - 'go build ./apps/api/cmd'
+      - 'go build ./apps/operator/cmd'
+      - 'go build ./apps/cli/cmd'
+      - 'go build ./apps/workspace-manager/cmd'
+
+  go:tidy:
+    desc: 'Tidy all Go modules'
+    cmds:
+      - 'go work sync'
+      - |
+        for dir in apps pkg; do
+          find "$dir" -name "go.mod" -execdir go mod tidy \;
+        done
+
+  go:vet:
+    desc: 'Run go vet on all modules'
+    cmds:
+      - |
+        for dir in {{.GO_MODULES}}; do
+          go vet ./$dir/...
+        done
+
+  # Frontend
+  web:install:
+    desc: 'Install frontend dependencies'
+    cmd: '{{.PNPM}} install --dir {{.WEB_DIR}}'
+
+  web:dev:
+    desc: 'Start Astro dev server'
+    cmd: '{{.PNPM}} dev'
+    dir: '{{.WEB_DIR}}'
+
+  web:build:
+    desc: 'Build frontend for production'
+    cmd: '{{.PNPM}} --filter dashboard build'
+
+  web:preview:
+    desc: 'Preview production build'
+    cmd: '{{.PNPM}} preview'
+    dir: '{{.WEB_DIR}}'
+
+  # Lint / Format
+  lint:
+    desc: 'Run all linters (Go + JS/TS)'
+    cmds:
+      - task: go:lint
+      - fmt:check
+      - task: oxlint
+
+  format:
+    desc: 'Format all files with Prettier'
+    cmd: '{{.PNPM}} prettier --write .'
+
+  format:check:
+    desc: 'Check formatting with Prettier'
+    cmd: '{{.PNPM}} prettier --check .'
+    ignore_error: true
+
+  oxlint:
+    desc: 'Run oxlint on JS/TS files'
+    cmd: '{{.PNPM}} oxlint . --ignore-path .gitignore -c .oxlintrc.json'
+
+  # CI
+  ci:
+    desc: 'Run full CI pipeline'
+    cmds:
+      - task: go:vet
+      - task: go:lint
+      - task: go:test
+      - task: go:build
+      - task: format:check
+      - task: oxlint
+      - task: web:build
+
+  # Docker
+  docker:build:api:
+    desc: 'Build API Docker image'
+    cmd: 'docker build -f deploy/Dockerfile.api -t nimbuscore-api:dev .'
+
+  docker:build:operator:
+    desc: 'Build operator Docker image'
+    cmd:
+      'docker build -f deploy/Dockerfile.operator -t nimbuscore-operator:dev .'
+
+  # Git Hooks
+  hooks:init:
+    desc: 'Initialize git hooks (husky)'
+    cmd: '{{.PNPM}} exec husky'
+
+  # Dev
+  dev:
+    desc: 'Run all checks (lint + test + build)'
+    cmds:
+      - task: go:vet
+      - task: go:test
+      - task: web:build
+
+  # Utils
+  clean:
+    desc: 'Clean all build artifacts'
+    cmds:
+      - 'rm -rf dist/'
+      - 'rm -f coverage.out coverage.html'
+      - 'rm -rf {{.WEB_DIR}}/dist'
+      - 'go clean -cache'
