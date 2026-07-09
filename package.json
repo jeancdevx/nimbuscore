@@ -1,0 +1,33 @@
+{
+  "name": "nimbuscore",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "oxlint . --ignore-path .gitignore -c .oxlintrc.json",
+    "prepare": "husky",
+    "prettier": "prettier",
+    "oxlint": "oxlint",
+    "astro": "pnpm --filter dashboard astro",
+    "build:dashboard": "pnpm --filter dashboard build"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.10.0",
+      "onFail": "download"
+    }
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "oxlint": "^1.73.0",
+    "prettier": "^3.9.5",
+    "prettier-plugin-astro": "^0.14.1"
+  }
+}
