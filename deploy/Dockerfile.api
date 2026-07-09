@@ -1,0 +1,11 @@
+FROM golang:1.26.5-alpine AS builder
+WORKDIR /src
+COPY go.work go.work.sum ./
+COPY apps/api apps/api
+COPY pkg/api pkg/api
+RUN go build -o /bin/api ./apps/api/cmd
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=builder /bin/api /api
+USER nonroot:nonroot
+ENTRYPOINT ["/api"]
