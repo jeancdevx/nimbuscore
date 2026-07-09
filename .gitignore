@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+pnpm-lock.yaml
+
+# Build
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+apps/*/dist/
+web/*/dist/
+.astro
+
+# Go
+vendor/
+*.test
+*.out
+go.work.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Coverage
+coverage/
+*.cov
+*.coverprofile
+
+# Helm
+deploy/helm/**/charts/*.tgz
+
+# Mise
+.mise.tmp/
+
+# Nx
+.nx/cache/
+.nx/workspace-data/
+
+# Agents
+.agents
+skills-lock.json
