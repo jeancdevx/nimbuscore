@@ -1,0 +1,12 @@
+go 1.26.5
+
+use (
+	./apps/api
+	./apps/cli
+	./apps/operator
+	./apps/workspace-manager
+	./pkg/api
+	./pkg/auth
+	./pkg/operator
+	./pkg/workspace
+)
