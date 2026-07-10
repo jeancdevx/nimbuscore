@@ -107,7 +107,7 @@ config:
     interval: 1h
     resticImage: restic/restic:latest
 
-# Secrets (override via --set or external secrets)
+# Secrets
 secrets:
   jwt: "change-me-in-production"
   oidcClientSecret: ""
@@ -115,7 +115,7 @@ secrets:
   awsSecretAccessKey: ""
   resticPassword: ""
 
-# Infrastructure dependencies (Bitnami charts)
+# Infrastructure dependencies
 postgresql:
   enabled: true
   auth:
