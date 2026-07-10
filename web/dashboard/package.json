@@ -23,6 +23,7 @@
   "dependencies": {
     "@astrojs/react": "4.4.2",
     "astro": "7.0.7",
+    "geist": "^1.7.2",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
