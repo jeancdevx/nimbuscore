@@ -66,6 +66,28 @@ func (s *Server) Routes() http.Handler {
 			r.Delete("/{id}", h.DeleteWorkspace)
 			r.Post("/{id}/start", h.StartWorkspace)
 			r.Post("/{id}/stop", h.StopWorkspace)
+			r.Post("/{id}/heartbeat", h.HeartbeatWorkspace)
+
+			r.Route("/{workspaceId}/snapshots", func(r chi.Router) {
+				r.Get("/", h.ListSnapshots)
+				r.Post("/", h.CreateSnapshot)
+				r.Get("/{id}", h.GetSnapshot)
+				r.Post("/{id}/restore", h.RestoreSnapshot)
+			})
+		})
+
+		r.Route("/prebuilds", func(r chi.Router) {
+			r.Get("/", h.ListPrebuilds)
+			r.Post("/", h.CreatePrebuild)
+			r.Get("/{id}", h.GetPrebuild)
+			r.Delete("/{id}", h.DeletePrebuild)
+		})
+
+		r.Route("/teams/{teamId}/quota", func(r chi.Router) {
+			r.Get("/", h.GetQuota)
+			r.Put("/", h.UpsertQuota)
+			r.Delete("/", h.DeleteQuota)
+			r.Get("/check", h.CheckQuota)
 		})
 	})
 
