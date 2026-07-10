@@ -3,7 +3,7 @@
   "__requires": [],
   "title": "NimbusCore Overview",
   "uid": "nimbuscore-overview",
-  "version": 1,
+  "version": 2,
   "tags": ["nimbuscore", "kubernetes"],
   "timezone": "browser",
   "panels": [
@@ -13,19 +13,19 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "rate(http_requests_total{app_kubernetes_io_component=\"api\"}[5m])",
-          "legendFormat": "{{ method }} {{ path }}"
+          "expr": "rate(nimbuscore_requests_total{app_kubernetes_io_component=\"api\"}[5m])",
+          "legendFormat": "requests"
         }
       ]
     },
     {
-      "title": "API Request Duration (p99)",
+      "title": "API Error Rate",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{app_kubernetes_io_component=\"api\"}[5m]))",
-          "legendFormat": "p99"
+          "expr": "rate(nimbuscore_errors_total{app_kubernetes_io_component=\"api\"}[5m])",
+          "legendFormat": "errors"
         }
       ]
     },
@@ -35,8 +35,8 @@
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 8 },
       "targets": [
         {
-          "expr": "count(nimbuscore_workspace_info{status=\"running\"})",
-          "legendFormat": "Running"
+          "expr": "nimbuscore_active_workspaces{app_kubernetes_io_component=\"api\"}",
+          "legendFormat": "Active"
         }
       ],
       "fieldConfig": {
@@ -44,27 +44,51 @@
           "color": { "mode": "thresholds" },
           "thresholds": {
             "steps": [
-              { "color": "green", "value": null }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 100 }
             ]
           }
         }
       }
     },
     {
-      "title": "Workspace Status Breakdown",
-      "type": "piechart",
-      "gridPos": { "h": 8, "w": 8, "x": 4, "y": 8 },
+      "title": "Workspace Hours (Billing)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 8 },
       "targets": [
         {
-          "expr": "count by (status) (nimbuscore_workspace_info)",
+          "expr": "nimbuscore_workspace_hours_total{app_kubernetes_io_component=\"api\"}",
+          "legendFormat": "Hours"
+        }
+      ]
+    },
+    {
+      "title": "Snapshots Created",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 8 },
+      "targets": [
+        {
+          "expr": "nimbuscore_snapshots_total{app_kubernetes_io_component=\"api\"}",
+          "legendFormat": "Snapshots"
+        }
+      ]
+    },
+    {
+      "title": "Workspace Status Breakdown",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "count by (status) (nimbuscore_workspace_info{app_kubernetes_io_component=\"operator\"})",
           "legendFormat": "{{ status }}"
         }
       ]
     },
     {
-      "title": "CPU Usage",
+      "title": "CPU Usage (per workspace)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
       "targets": [
         {
           "expr": "sum(container_cpu_usage_seconds_total{namespace=~\"nimbuscore-.*\"}) by (pod)",
@@ -73,9 +97,9 @@
       ]
     },
     {
-      "title": "Memory Usage",
+      "title": "Memory Usage (per workspace)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
       "targets": [
         {
           "expr": "sum(container_memory_working_set_bytes{namespace=~\"nimbuscore-.*\"}) by (pod)",
@@ -86,7 +110,7 @@
     {
       "title": "Operator Reconciliation",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
       "targets": [
         {
           "expr": "rate(controller_runtime_reconcile_total{app_kubernetes_io_component=\"operator\"}[5m])",
@@ -101,7 +125,7 @@
     {
       "title": "Queue Depth (RabbitMQ)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
       "targets": [
         {
           "expr": "rabbitmq_queue_messages_ready{queue=\"nimbuscore.workspace\"}",
@@ -110,6 +134,32 @@
         {
           "expr": "rabbitmq_queue_messages_unacked{queue=\"nimbuscore.workspace\"}",
           "legendFormat": "Unacked"
+        }
+      ]
+    },
+    {
+      "title": "Total Snapshots & Prebuilds",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "targets": [
+        {
+          "expr": "rate(nimbuscore_snapshots_total[5m])",
+          "legendFormat": "Snapshots"
+        },
+        {
+          "expr": "rate(nimbuscore_prebuilds_total[5m])",
+          "legendFormat": "Prebuilds"
+        }
+      ]
+    },
+    {
+      "title": "Billing Cost by Team",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum by (team) (nimbuscore_billing_cost_total)",
+          "legendFormat": "{{ team }}"
         }
       ]
     }
