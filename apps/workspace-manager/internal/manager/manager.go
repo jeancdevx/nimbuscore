@@ -6,7 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -51,6 +54,7 @@ func New(
 	consumer.Handle(workspace.EventWorkspaceDelete, mgr.handleDelete)
 	consumer.Handle(workspace.EventWorkspaceSnapshot, mgr.handleSnapshot)
 	consumer.Handle(workspace.EventWorkspaceTimeout, mgr.handleTimeout)
+	consumer.Handle(workspace.EventWorkspacePrebuild, mgr.handlePrebuild)
 
 	return mgr
 }
@@ -94,6 +98,13 @@ func (m *Manager) handleStop(ctx context.Context, event workspace.Event) error {
 		return m.publisher.Publish(ctx, snapEvent)
 	}
 
+	slog.Info("stopping workspace pod", "workspace_id", event.WorkspaceID)
+	wsID := event.WorkspaceID.String()
+	err := m.k8s.CoreV1().Pods(wsID).Delete(ctx, wsID, metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		slog.Warn("failed to delete pod", "workspace_id", wsID, "error", err)
+	}
+
 	return nil
 }
 
@@ -111,7 +122,8 @@ func (m *Manager) handleSnapshot(ctx context.Context, event workspace.Event) err
 	slog.Info("workspace snapshot event", "workspace_id", event.WorkspaceID)
 
 	var payload struct {
-		Action string `json:"action"`
+		Action     string `json:"action"`
+		SnapshotID string `json:"snapshot_id,omitempty"`
 	}
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		return err
@@ -129,12 +141,57 @@ func (m *Manager) handleSnapshot(ctx context.Context, event workspace.Event) err
 		if err := m.snapshots.Restore(ctx, wsID, wsID, wsID); err != nil {
 			slog.Warn("snapshot restore failed (may be first start)", "workspace_id", wsID, "error", err)
 		}
+	case "schedule":
+		var schedulePayload workspace.ScheduleSnapshotPayload
+		if err := json.Unmarshal(event.Payload, &schedulePayload); err == nil {
+			for _, id := range schedulePayload.WorkspaceIDs {
+				backupEvent := workspace.Event{
+					ID:          event.ID,
+					Type:        workspace.EventWorkspaceSnapshot,
+					WorkspaceID: event.WorkspaceID,
+					Payload:     json.RawMessage(`{"action":"backup"}`),
+					Timestamp:   time.Now().UTC(),
+				}
+				if id != "" {
+					backupEvent.WorkspaceID = uuid.MustParse(id)
+				}
+				m.publisher.Publish(ctx, backupEvent)
+			}
+		}
 	}
 
 	return nil
 }
 
 func (m *Manager) handleTimeout(ctx context.Context, event workspace.Event) error {
-	slog.Info("workspace timeout event", "workspace_id", event.WorkspaceID)
+	slog.Info("workspace timeout event, stopping workspace", "workspace_id", event.WorkspaceID)
+
+	wsID := event.WorkspaceID.String()
+
+	pod, err := m.k8s.CoreV1().Pods(wsID).Get(ctx, wsID, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		slog.Warn("failed to get pod for timeout", "workspace_id", wsID, "error", err)
+		return nil
+	}
+
+	if pod.Status.Phase == corev1.PodRunning {
+		err = m.k8s.CoreV1().Pods(wsID).Delete(ctx, wsID, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			slog.Warn("failed to delete idle pod", "workspace_id", wsID, "error", err)
+		}
+		slog.Info("stopped idle workspace", "workspace_id", wsID)
+	}
+
 	return nil
 }
+
+func (m *Manager) handlePrebuild(ctx context.Context, event workspace.Event) error {
+	slog.Info("prebuild event", "prebuild_id", event.WorkspaceID)
+	return nil
+}
+
+
+
