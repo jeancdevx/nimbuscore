@@ -16,7 +16,7 @@ func ListTeams(ctx context.Context, db *pgxpool.Pool) ([]api.Team, error) {
 	}
 	defer rows.Close()
 
-	var teams []api.Team
+	teams := []api.Team{}
 	for rows.Next() {
 		var t api.Team
 		if err := rows.Scan(&t.ID, &t.Name, &t.Slug, &t.CreatedAt, &t.UpdatedAt); err != nil {
