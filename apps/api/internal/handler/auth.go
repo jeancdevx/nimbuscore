@@ -27,7 +27,8 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := uuid.New().String()
-	http.Redirect(w, r, provider.AuthURL(state), http.StatusTemporaryRedirect)
+	authURL := provider.ExternalAuthURL(state, h.cfg.Auth.ExternalIssuer)
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
 }
 
 func (h *Handler) AuthCallback(w http.ResponseWriter, r *http.Request) {
