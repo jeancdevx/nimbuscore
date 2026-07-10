@@ -19,7 +19,7 @@ func ListSnapshots(ctx context.Context, db *pgxpool.Pool, workspaceID uuid.UUID)
 	}
 	defer rows.Close()
 
-	var snaps []api.Snapshot
+	snaps := []api.Snapshot{}
 	for rows.Next() {
 		var s api.Snapshot
 		if err := rows.Scan(&s.ID, &s.WorkspaceID, &s.Status, &s.Size, &s.Message, &s.StartedAt, &s.CompletedAt, &s.CreatedAt); err != nil {
