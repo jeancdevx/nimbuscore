@@ -26,7 +26,7 @@ func NewIdleWatcher(k8s kubernetes.Interface, pub *workspace.Publisher, idleTime
 func (w *IdleWatcher) Start(ctx context.Context) {
 	slog.Info("idle watcher starting", "timeout_minutes", w.idleTimeout)
 
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -78,11 +78,18 @@ func (w *IdleWatcher) checkIdleWorkspaces(ctx context.Context) {
 				continue
 			}
 
-			runningDuration := time.Since(pod.CreationTimestamp.Time)
-			if runningDuration > time.Duration(w.idleTimeout)*time.Minute {
+			lastActivity := pod.CreationTimestamp.Time
+			if lastActivityStr, ok := pod.Annotations["nimbuscore.io/last-activity"]; ok {
+				if parsed, err := time.Parse(time.RFC3339, lastActivityStr); err == nil {
+					lastActivity = parsed
+				}
+			}
+
+			idleDuration := time.Since(lastActivity)
+			if idleDuration > time.Duration(w.idleTimeout)*time.Minute {
 				slog.Info("workspace idle timeout reached",
 					"workspace_id", wsID,
-					"running_duration", runningDuration,
+					"idle_duration", idleDuration,
 				)
 
 				event := workspace.Event{
