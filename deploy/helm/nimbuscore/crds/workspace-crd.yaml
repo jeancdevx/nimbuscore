@@ -1,0 +1,117 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workspaces.nimbuscore.io
+  labels:
+    app.kubernetes.io/name: nimbuscore
+spec:
+  group: nimbuscore.io
+  names:
+    kind: Workspace
+    plural: workspaces
+    singular: workspace
+    shortNames:
+      - ws
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - image
+                - resources
+              properties:
+                userId:
+                  type: string
+                teamId:
+                  type: string
+                image:
+                  type: string
+                repoUrl:
+                  type: string
+                branch:
+                  type: string
+                resources:
+                  type: object
+                  required:
+                    - cpu
+                    - memory
+                    - disk
+                  properties:
+                    cpu:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d+)?)$'
+                    memory:
+                      type: string
+                      pattern: '^(\d+(\.\d+)?(Mi|Gi|M|G))$'
+                    disk:
+                      type: string
+                      pattern: '^(\d+(\.\d+)?(Mi|Gi|M|G))$'
+                    gpu:
+                      type: integer
+                      minimum: 0
+                ingress:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    host:
+                      type: string
+                    ports:
+                      type: array
+                      items:
+                        type: integer
+                storage:
+                  type: object
+                  properties:
+                    size:
+                      type: string
+                    storageClass:
+                      type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                message:
+                  type: string
+                podName:
+                  type: string
+                podStatus:
+                  type: string
+                url:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+      additionalPrinterColumns:
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: URL
+          type: string
+          jsonPath: .status.url
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
