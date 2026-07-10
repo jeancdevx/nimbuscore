@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nimbuscore.api.fullname" . }}
+  labels: {{ include "nimbuscore.api.labels" . | nindent 4 }}
+data:
+  HOST: "0.0.0.0"
+  PORT: "8080"
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  OIDC_ISSUER: {{ .Values.config.oidc.issuer | quote }}
+  OIDC_CLIENT_ID: {{ .Values.config.oidc.clientId | quote }}
+  OIDC_REDIRECT_URL: {{ .Values.config.oidc.redirectUrl | quote }}
+  INGRESS_HOST: {{ .Values.config.ingress.host | quote }}
