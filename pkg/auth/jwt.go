@@ -13,6 +13,7 @@ type Claims struct {
 	UserID    uuid.UUID `json:"user_id"`
 	Email     string    `json:"email"`
 	Name      string    `json:"name"`
+	Role      string    `json:"role"`
 	AvatarURL string    `json:"avatar_url,omitempty"`
 }
 
@@ -25,7 +26,7 @@ func NewJWTIssuer(secret string, ttl time.Duration) *JWTIssuer {
 	return &JWTIssuer{secret: []byte(secret), ttl: ttl}
 }
 
-func (j *JWTIssuer) Issue(userID uuid.UUID, email, name, avatarURL string) (string, error) {
+func (j *JWTIssuer) Issue(userID uuid.UUID, email, name, role, avatarURL string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -36,6 +37,7 @@ func (j *JWTIssuer) Issue(userID uuid.UUID, email, name, avatarURL string) (stri
 		UserID:    userID,
 		Email:     email,
 		Name:      name,
+		Role:      role,
 		AvatarURL: avatarURL,
 	}
 
