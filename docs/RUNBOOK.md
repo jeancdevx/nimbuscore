@@ -336,7 +336,7 @@ kubectl get pb -A
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm dependency update deploy/helm/nimbuscore/
 
-helm install nimbuscore deploy/helm/nimbuscore \
+helm upgrade --install nimbuscore deploy/helm/nimbuscore \
   --values deploy/helm/nimbuscore/values.dev.yaml \
   --set secrets.jwt="$(openssl rand -base64 32)" \
   --set secrets.oidcClientSecret="$(openssl rand -base64 32)" \

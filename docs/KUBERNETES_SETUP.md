@@ -72,8 +72,8 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm dependency update deploy/helm/nimbuscore/
 
-# Instalar (dev)
-helm install nimbuscore deploy/helm/nimbuscore \
+# Instalar (dev) — usar upgrade --install para ser idempotente
+helm upgrade --install nimbuscore deploy/helm/nimbuscore \
   --values deploy/helm/nimbuscore/values.dev.yaml \
   --set secrets.jwt="dev-jwt-secret" \
   --set secrets.oidcClientSecret="dev-oidc-secret" \
@@ -88,6 +88,10 @@ kubectl get ingress -A | grep nimbuscore
 
 > **Nota para kind**: Agregá `127.0.0.1 nimbuscore.local` a `/etc/hosts`. El
 > ingress escucha en `localhost:80`.
+
+> **ServiceMonitor**: Si no tenés Prometheus Operator instalado, usá
+> `--set monitoring.serviceMonitor.enabled=false` o asegurate de que
+> `values.dev.yaml` lo tenga deshabilitado (ya incluido por defecto en dev).
 
 ---
 
