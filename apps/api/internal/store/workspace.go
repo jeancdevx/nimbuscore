@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,6 +16,28 @@ func ListWorkspacesByUser(ctx context.Context, db *pgxpool.Pool, userID uuid.UUI
 			   repo_url, branch, ports, last_activity, created_at, updated_at
 		FROM workspaces WHERE user_id = $1 ORDER BY created_at DESC
 	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var workspaces []api.Workspace
+	for rows.Next() {
+		ws, err := scanWorkspace(rows)
+		if err != nil {
+			return nil, err
+		}
+		workspaces = append(workspaces, *ws)
+	}
+	return workspaces, nil
+}
+
+func ListWorkspacesByTeam(ctx context.Context, db *pgxpool.Pool, teamID uuid.UUID) ([]api.Workspace, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id, name, user_id, team_id, image, status, cpu, memory, disk, gpu,
+			   repo_url, branch, ports, last_activity, created_at, updated_at
+		FROM workspaces WHERE team_id = $1 AND status NOT IN ('deleted') ORDER BY created_at DESC
+	`, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,18 +77,27 @@ func GetWorkspace(ctx context.Context, db *pgxpool.Pool, id uuid.UUID) (*api.Wor
 }
 
 func CreateWorkspace(ctx context.Context, db *pgxpool.Pool, ws *api.Workspace) error {
-	_, err := db.Exec(ctx, `
+	portsJSON, err := json.Marshal(ws.Ports)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(ctx, `
 		INSERT INTO workspaces (id, name, user_id, team_id, image, status,
 			cpu, memory, disk, gpu, repo_url, branch, ports, last_activity, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`, ws.ID, ws.Name, ws.UserID, ws.TeamID, ws.Image, ws.Status,
 		ws.Resources.CPU, ws.Resources.Memory, ws.Resources.Disk, ws.Resources.GPU,
-		ws.RepoURL, ws.Branch, ws.Ports, ws.LastActivity, ws.CreatedAt, ws.UpdatedAt)
+		ws.RepoURL, ws.Branch, portsJSON, ws.LastActivity, ws.CreatedAt, ws.UpdatedAt)
 	return err
 }
 
 func UpdateWorkspaceStatus(ctx context.Context, db *pgxpool.Pool, id uuid.UUID, status api.WorkspaceStatus) error {
 	_, err := db.Exec(ctx, `UPDATE workspaces SET status = $1, updated_at = NOW() WHERE id = $2`, status, id)
+	return err
+}
+
+func UpdateWorkspaceLastActivity(ctx context.Context, db *pgxpool.Pool, id uuid.UUID) error {
+	_, err := db.Exec(ctx, `UPDATE workspaces SET last_activity = NOW() WHERE id = $1`, id)
 	return err
 }
 
@@ -80,16 +112,23 @@ type scanner interface {
 
 func scanWorkspace(row scanner) (*api.Workspace, error) {
 	var ws api.Workspace
+	var portsJSON []byte
 	err := row.Scan(
 		&ws.ID, &ws.Name, &ws.UserID, &ws.TeamID, &ws.Image, &ws.Status,
 		&ws.Resources.CPU, &ws.Resources.Memory, &ws.Resources.Disk, &ws.Resources.GPU,
-		&ws.RepoURL, &ws.Branch, &ws.Ports, &ws.LastActivity, &ws.CreatedAt, &ws.UpdatedAt,
+		&ws.RepoURL, &ws.Branch, &portsJSON, &ws.LastActivity, &ws.CreatedAt, &ws.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, api.ErrNotFound
 		}
 		return nil, err
+	}
+	if len(portsJSON) > 0 {
+		json.Unmarshal(portsJSON, &ws.Ports)
+	}
+	if ws.Ports == nil {
+		ws.Ports = []api.PortMapping{}
 	}
 	return &ws, nil
 }
