@@ -12,13 +12,15 @@ import (
 type EventType string
 
 const (
-	EventWorkspaceCreate   EventType = "workspace.create"
-	EventWorkspaceStart    EventType = "workspace.start"
-	EventWorkspaceStop     EventType = "workspace.stop"
-	EventWorkspaceDelete   EventType = "workspace.delete"
-	EventWorkspaceBuild    EventType = "workspace.build"
-	EventWorkspaceSnapshot EventType = "workspace.snapshot"
-	EventWorkspaceTimeout  EventType = "workspace.timeout"
+	EventWorkspaceCreate    EventType = "workspace.create"
+	EventWorkspaceStart     EventType = "workspace.start"
+	EventWorkspaceStop      EventType = "workspace.stop"
+	EventWorkspaceDelete    EventType = "workspace.delete"
+	EventWorkspaceBuild     EventType = "workspace.build"
+	EventWorkspaceSnapshot  EventType = "workspace.snapshot"
+	EventWorkspaceTimeout   EventType = "workspace.timeout"
+	EventWorkspacePrebuild  EventType = "workspace.prebuild"
+	EventWorkspaceReconnect EventType = "workspace.reconnect"
 )
 
 type Event struct {
