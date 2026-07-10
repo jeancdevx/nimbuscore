@@ -16,7 +16,7 @@ func ListUsers(ctx context.Context, db *pgxpool.Pool) ([]api.User, error) {
 	}
 	defer rows.Close()
 
-	var users []api.User
+	users := []api.User{}
 	for rows.Next() {
 		var u api.User
 		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.Provider, &u.ProviderID, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt); err != nil {
