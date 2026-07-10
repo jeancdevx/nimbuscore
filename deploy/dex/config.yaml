@@ -1,0 +1,26 @@
+issuer: http://localhost:5556/dex
+storage:
+  type: sqlite3
+  config:
+    file: /var/dex/dex.db
+
+web:
+  http: 0.0.0.0:5556
+
+staticClients:
+  - id: nimbuscore
+    redirectURIs:
+      - http://localhost:8080/auth/callback
+    name: NimbusCore
+    secret: nimbuscore-secret
+
+oauth2:
+  skipApprovalScreen: true
+
+# Generar hash con: docker run --rm ghcr.io/dexidp/dex:v2.42.0 dex hash -p admin123
+enablePasswordDB: true
+staticPasswords:
+  - email: admin@nimbuscore.io
+    hash: "$2a$10$2b2c2d2e2f2g2h2i2j2k2l2m2n2o2p2q2r2s2t2u2v2w2x2y2z2A2B2C"
+    username: admin
+    userID: "11111111-1111-1111-1111-111111111111"
