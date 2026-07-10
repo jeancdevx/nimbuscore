@@ -13,6 +13,10 @@ config:
   ingress:
     host: dev.nimbuscore.io
 
+monitoring:
+  serviceMonitor:
+    enabled: false
+
 api:
   replicas: 1
   autoscaling:
