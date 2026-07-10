@@ -20,7 +20,7 @@ func ListPrebuilds(ctx context.Context, db *pgxpool.Pool) ([]api.Prebuild, error
 	}
 	defer rows.Close()
 
-	var prebuilds []api.Prebuild
+	prebuilds := []api.Prebuild{}
 	for rows.Next() {
 		var p api.Prebuild
 		if err := rows.Scan(&p.ID, &p.UserID, &p.TeamID, &p.Name, &p.Image, &p.RepoURL, &p.Branch,
