@@ -2,7 +2,9 @@ packages:
   - 'web/dashboard'
 allowBuilds:
   esbuild: true
+  sharp: true
 minimumReleaseAgeExclude:
   - prettier@3.9.5
 onlyBuiltDependencies:
   - esbuild
+  - sharp
