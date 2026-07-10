@@ -140,10 +140,13 @@ func (r *WorkspaceReconciler) handleBuilding(ctx context.Context, ws *nimbuscore
 		return reconcile.Result{}, err
 	}
 
+	portURLs := r.buildPortIngresses(ctx, ws)
+
 	ws.Status.Phase = "running"
 	ws.Status.Message = "workspace is running"
 	ws.Status.PodName = pod.Name
 	ws.Status.URL = fmt.Sprintf("https://%s.%s", ws.Name, r.IngressHost)
+	ws.Status.PortURLs = portURLs
 	if err := r.Status().Update(ctx, ws); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -230,11 +233,19 @@ func (r *WorkspaceReconciler) buildService(ws *nimbuscorev1alpha1.Workspace) *co
 	}
 
 	for i, p := range ws.Spec.Ingress.Ports {
+		proto := corev1.ProtocolTCP
+		if p.Protocol == "udp" {
+			proto = corev1.ProtocolUDP
+		}
+		portName := fmt.Sprintf("port-%d", i)
+		if p.Subdomain != "" {
+			portName = p.Subdomain
+		}
 		ports = append(ports, corev1.ServicePort{
-			Name:       fmt.Sprintf("port-%d", i),
-			Port:       int32(p),
-			TargetPort: intstr.FromInt(p),
-			Protocol:   corev1.ProtocolTCP,
+			Name:       portName,
+			Port:       int32(p.Port),
+			TargetPort: intstr.FromInt(p.Port),
+			Protocol:   proto,
 		})
 	}
 
@@ -249,6 +260,72 @@ func (r *WorkspaceReconciler) buildService(ws *nimbuscorev1alpha1.Workspace) *co
 			Ports:    ports,
 		},
 	}
+}
+
+func (r *WorkspaceReconciler) buildPortIngresses(ctx context.Context, ws *nimbuscorev1alpha1.Workspace) map[int]string {
+	portURLs := make(map[int]string)
+
+	for _, rule := range ws.Spec.Ingress.Ports {
+		if rule.Subdomain == "" {
+			continue
+		}
+
+		host := fmt.Sprintf("%s-%s.%s", rule.Subdomain, ws.Name, r.IngressHost)
+		portURLs[rule.Port] = fmt.Sprintf("https://%s", host)
+
+		ing := &networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("%s-%s", ws.Name, rule.Subdomain),
+				Namespace: ws.Name,
+				Labels:    map[string]string{nimbuscorev1alpha1.LabelWorkspaceID: ws.Name},
+				Annotations: map[string]string{
+					"nginx.ingress.kubernetes.io/proxy-body-size":    "0",
+					"nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
+					"nginx.ingress.kubernetes.io/proxy-send-timeout": "3600",
+				},
+			},
+			Spec: networkingv1.IngressSpec{
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: host,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     "/",
+										PathType: pathTypePtr(networkingv1.PathTypePrefix),
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: ws.Name,
+												Port: networkingv1.ServiceBackendPort{
+													Number: int32(rule.Port),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		if r.TLSSecretName != "" {
+			ing.Spec.TLS = []networkingv1.IngressTLS{
+				{
+					Hosts:      []string{host},
+					SecretName: r.TLSSecretName,
+				},
+			}
+		}
+
+		if err := r.Create(ctx, ing); err != nil && !apierrors.IsAlreadyExists(err) {
+			slog.Warn("failed to create port ingress", "workspace", ws.Name, "port", rule.Port, "error", err)
+		}
+	}
+
+	return portURLs
 }
 
 func (r *WorkspaceReconciler) buildIngress(ws *nimbuscorev1alpha1.Workspace) *networkingv1.Ingress {
