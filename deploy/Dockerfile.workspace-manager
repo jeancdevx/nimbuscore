@@ -1,13 +1,13 @@
 FROM golang:1.26.5-alpine AS builder
-WORKDIR /src
+WORKDIR /build
 
-COPY go.work go.work.sum ./
 COPY apps/workspace-manager apps/workspace-manager
 COPY pkg/api pkg/api
 COPY pkg/workspace pkg/workspace
 
+WORKDIR /build/apps/workspace-manager
 RUN go mod download
-RUN go build -o /bin/workspace-manager ./apps/workspace-manager/cmd
+RUN go build -o /bin/workspace-manager ./cmd
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /bin/workspace-manager /workspace-manager
