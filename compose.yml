@@ -1,0 +1,92 @@
+services:
+  postgresql:
+    image: postgres:17-alpine
+    container_name: nimbuscore-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: nimbuscore
+      POSTGRES_PASSWORD: nimbuscore
+      POSTGRES_DB: nimbuscore
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nimbuscore"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nimbuscore-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: nimbuscore-rmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: changeme
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dex:
+    image: ghcr.io/dexidp/dex:v2.42.0
+    container_name: nimbuscore-dex
+    restart: unless-stopped
+    ports:
+      - "5556:5556"
+    volumes:
+      - ./deploy/dex/config.yaml:/etc/dex/config.yaml:ro
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    container_name: nimbuscore-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      LOG_LEVEL: debug
+      DATABASE_URL: postgres://nimbuscore:nimbuscore@postgresql:5432/nimbuscore?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://user:changeme@rabbitmq:5672
+      OIDC_ISSUER: http://localhost:5556/dex
+      OIDC_CLIENT_ID: nimbuscore
+      OIDC_CLIENT_SECRET: nimbuscore-secret
+      OIDC_REDIRECT_URL: http://localhost:8080/auth/callback
+      JWT_SECRET: local-dev-secret-change-in-production
+      INGRESS_HOST: localhost
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  pgdata:
