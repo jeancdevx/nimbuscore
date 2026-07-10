@@ -1,13 +1,13 @@
 FROM golang:1.26.5-alpine AS builder
-WORKDIR /src
+WORKDIR /build
 
-COPY go.work go.work.sum ./
 COPY apps/operator apps/operator
 COPY pkg/operator pkg/operator
 COPY pkg/api pkg/api
 
+WORKDIR /build/apps/operator
 RUN go mod download
-RUN go build -o /bin/operator ./apps/operator/cmd
+RUN go build -o /bin/operator ./cmd
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /bin/operator /operator
