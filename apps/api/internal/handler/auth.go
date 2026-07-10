@@ -98,7 +98,12 @@ func (h *Handler) AuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwt, err := h.jwtAuth.Issue(user.ID, user.Email, user.Name, user.AvatarURL)
+	role := string(api.RoleUser)
+	if string(user.Role) != "" {
+		role = string(user.Role)
+	}
+
+	jwt, err := h.jwtAuth.Issue(user.ID, user.Email, user.Name, role, user.AvatarURL)
 	if err != nil {
 		slog.Error("failed to issue JWT", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
