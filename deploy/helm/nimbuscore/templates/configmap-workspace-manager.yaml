@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nimbuscore.manager.fullname" . }}
+  labels: {{ include "nimbuscore.manager.labels" . | nindent 4 }}
+data:
+  INGRESS_HOST: {{ .Values.config.ingress.host | quote }}
+  INGRESS_ENABLED: {{ .Values.config.ingress.enabled | quote }}
+  SNAPSHOT_ENABLED: {{ .Values.config.snapshot.enabled | quote }}
+  RESTIC_REPOSITORY: {{ .Values.config.snapshot.repository | quote }}
+  SNAPSHOT_INTERVAL: {{ .Values.config.snapshot.interval | quote }}
+  RESTIC_IMAGE: {{ .Values.config.snapshot.resticImage | quote }}
