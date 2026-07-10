@@ -36,7 +36,7 @@
         },
         {
           "alert": "NimbusCoreApiHighLatency",
-          "expr": "rate(http_request_duration_seconds_sum{app_kubernetes_io_component=\"api\"}[5m]) / rate(http_request_duration_seconds_count{app_kubernetes_io_component=\"api\"}[5m]) > 1",
+          "expr": "rate(nimbuscore_http_request_duration_seconds_sum{app_kubernetes_io_component=\"api\"}[5m]) / rate(nimbuscore_http_request_duration_seconds_count{app_kubernetes_io_component=\"api\"}[5m]) > 1",
           "for": "5m",
           "labels": { "severity": "warning" },
           "annotations": {
@@ -52,6 +52,36 @@
           "annotations": {
             "summary": "Replica count mismatch",
             "description": "A NimbusCore deployment has fewer available replicas than desired."
+          }
+        },
+        {
+          "alert": "NimbusCoreQuotaExceeded",
+          "expr": "nimbuscore_quota_utilization_ratio > 0.9",
+          "for": "10m",
+          "labels": { "severity": "warning" },
+          "annotations": {
+            "summary": "Team quota utilization above 90%",
+            "description": "A team is using more than 90% of its workspace quota."
+          }
+        },
+        {
+          "alert": "NimbusCoreHighErrorRate",
+          "expr": "rate(nimbuscore_errors_total{app_kubernetes_io_component=\"api\"}[5m]) > 0.05",
+          "for": "5m",
+          "labels": { "severity": "warning" },
+          "annotations": {
+            "summary": "API error rate above 5%",
+            "description": "The API is returning errors at a rate above 5%."
+          }
+        },
+        {
+          "alert": "NimbusCoreVulnerabilityFound",
+          "expr": "nimbuscore_vulnerabilities_critical > 0",
+          "for": "1h",
+          "labels": { "severity": "critical" },
+          "annotations": {
+            "summary": "Critical vulnerabilities detected",
+            "description": "Security scanning found critical vulnerabilities in the deployment."
           }
         }
       ]
