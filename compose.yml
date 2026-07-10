@@ -67,6 +67,8 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       HOST: "0.0.0.0"
       PORT: "8080"
@@ -74,10 +76,11 @@ services:
       DATABASE_URL: postgres://nimbuscore:nimbuscore@postgresql:5432/nimbuscore?sslmode=disable
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://user:changeme@rabbitmq:5672
-      OIDC_ISSUER: http://localhost:5556/dex
+      OIDC_ISSUER: http://host.docker.internal:5556/dex
+      OIDC_EXTERNAL_ISSUER: http://localhost:5556/dex
       OIDC_CLIENT_ID: nimbuscore
       OIDC_CLIENT_SECRET: nimbuscore-secret
-      OIDC_REDIRECT_URL: http://localhost:8080/auth/callback
+      OIDC_REDIRECT_URL: http://localhost:5173
       JWT_SECRET: local-dev-secret-change-in-production
       INGRESS_HOST: localhost
     depends_on:
@@ -87,6 +90,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      dex:
+        condition: service_started
 
 volumes:
   pgdata:
