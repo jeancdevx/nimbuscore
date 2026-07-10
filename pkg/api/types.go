@@ -45,6 +45,12 @@ type WorkspaceResources struct {
 	GPU    int    `json:"gpu,omitempty"`
 }
 
+type PortMapping struct {
+	Port      int    `json:"port"`
+	Protocol  string `json:"protocol"`
+	Subdomain string `json:"subdomain,omitempty"`
+}
+
 type Workspace struct {
 	ID           uuid.UUID          `json:"id"`
 	Name         string             `json:"name"`
@@ -55,8 +61,66 @@ type Workspace struct {
 	Resources    WorkspaceResources `json:"resources"`
 	RepoURL      string             `json:"repo_url,omitempty"`
 	Branch       string             `json:"branch,omitempty"`
-	Ports        []int              `json:"ports,omitempty"`
+	Ports        []PortMapping      `json:"ports,omitempty"`
 	LastActivity *time.Time         `json:"last_activity,omitempty"`
 	CreatedAt    time.Time          `json:"created_at"`
 	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
+type SnapshotStatus string
+
+const (
+	SnapshotStatusPending   SnapshotStatus = "pending"
+	SnapshotStatusRunning   SnapshotStatus = "running"
+	SnapshotStatusCompleted SnapshotStatus = "completed"
+	SnapshotStatusFailed    SnapshotStatus = "failed"
+)
+
+type Snapshot struct {
+	ID          uuid.UUID      `json:"id"`
+	WorkspaceID uuid.UUID      `json:"workspace_id"`
+	Status      SnapshotStatus `json:"status"`
+	Size        int64          `json:"size,omitempty"`
+	Message     string         `json:"message,omitempty"`
+	StartedAt   time.Time      `json:"started_at"`
+	CompletedAt *time.Time     `json:"completed_at,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+}
+
+type PrebuildStatus string
+
+const (
+	PrebuildStatusPending   PrebuildStatus = "pending"
+	PrebuildStatusBuilding  PrebuildStatus = "building"
+	PrebuildStatusAvailable PrebuildStatus = "available"
+	PrebuildStatusFailed    PrebuildStatus = "failed"
+)
+
+type Prebuild struct {
+	ID         uuid.UUID      `json:"id"`
+	UserID     uuid.UUID      `json:"user_id"`
+	TeamID     *uuid.UUID     `json:"team_id,omitempty"`
+	Name       string         `json:"name"`
+	Image      string         `json:"image"`
+	RepoURL    string         `json:"repo_url"`
+	Branch     string         `json:"branch"`
+	DevcontainerPath string  `json:"devcontainer_path,omitempty"`
+	Status     PrebuildStatus `json:"status"`
+	Message    string         `json:"message,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+type Quota struct {
+	TeamID       uuid.UUID `json:"team_id"`
+	MaxWorkspaces int      `json:"max_workspaces"`
+	MaxCPU       string    `json:"max_cpu"`
+	MaxMemory    string    `json:"max_memory"`
+	MaxDisk      string    `json:"max_disk"`
+	MaxGPU       int       `json:"max_gpu,omitempty"`
+	UsedWorkspaces int     `json:"used_workspaces,omitempty"`
+	UsedCPU      string    `json:"used_cpu,omitempty"`
+	UsedMemory   string    `json:"used_memory,omitempty"`
+	UsedDisk     string    `json:"used_disk,omitempty"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
