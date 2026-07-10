@@ -41,7 +41,7 @@ func GetUser(ctx context.Context, db *pgxpool.Pool, id uuid.UUID) (*api.User, er
 }
 
 func UpsertUser(ctx context.Context, db *pgxpool.Pool, u *api.User) error {
-	_, err := db.Exec(ctx, `
+	err := db.QueryRow(ctx, `
 		INSERT INTO users (id, email, name, role, provider, provider_id, avatar_url, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (provider, provider_id) DO UPDATE SET
@@ -49,7 +49,8 @@ func UpsertUser(ctx context.Context, db *pgxpool.Pool, u *api.User) error {
 			name = EXCLUDED.name,
 			avatar_url = EXCLUDED.avatar_url,
 			updated_at = EXCLUDED.updated_at
-	`, u.ID, u.Email, u.Name, u.Role, u.Provider, u.ProviderID, u.AvatarURL, u.CreatedAt, u.UpdatedAt)
+		RETURNING id
+	`, u.ID, u.Email, u.Name, u.Role, u.Provider, u.ProviderID, u.AvatarURL, u.CreatedAt, u.UpdatedAt).Scan(&u.ID)
 	return err
 }
 
