@@ -126,6 +126,11 @@ tasks:
     cmd:
       'docker build -f deploy/Dockerfile.operator -t nimbuscore-operator:dev .'
 
+  docker:build:workspace-manager:
+    desc: 'Build workspace-manager Docker image'
+    cmd:
+      'docker build -f deploy/Dockerfile.workspace-manager -t nimbuscore-workspace-manager:dev .'
+
   # Git Hooks
   hooks:init:
     desc: 'Initialize git hooks (husky)'
