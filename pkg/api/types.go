@@ -6,6 +6,31 @@ import (
 	"github.com/google/uuid"
 )
 
+type Role string
+
+const (
+	RoleAdmin     Role = "admin"
+	RoleTeamAdmin Role = "team_admin"
+	RoleUser      Role = "user"
+)
+
+type Permission string
+
+const (
+	PermissionManageSystem     Permission = "manage:system"
+	PermissionManageTeams      Permission = "manage:teams"
+	PermissionManageWorkspaces Permission = "manage:workspaces"
+	PermissionManageQuotas     Permission = "manage:quotas"
+	PermissionReadAuditLog     Permission = "read:audit_log"
+	PermissionViewBilling      Permission = "view:billing"
+)
+
+var RolePermissions = map[Role][]Permission{
+	RoleAdmin:     {PermissionManageSystem, PermissionManageTeams, PermissionManageWorkspaces, PermissionManageQuotas, PermissionReadAuditLog, PermissionViewBilling},
+	RoleTeamAdmin: {PermissionManageTeams, PermissionManageWorkspaces, PermissionManageQuotas, PermissionViewBilling},
+	RoleUser:      {PermissionManageWorkspaces},
+}
+
 type User struct {
 	ID         uuid.UUID `json:"id"`
 	Email      string    `json:"email"`
@@ -13,6 +38,7 @@ type User struct {
 	Provider   string    `json:"provider"`
 	ProviderID string    `json:"provider_id"`
 	AvatarURL  string    `json:"avatar_url,omitempty"`
+	Role       Role      `json:"role"`
 	Teams      []Team    `json:"teams,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
@@ -24,6 +50,65 @@ type Team struct {
 	Slug      string    `json:"slug"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type AuditAction string
+
+const (
+	AuditWorkspaceCreate  AuditAction = "workspace.create"
+	AuditWorkspaceStart   AuditAction = "workspace.start"
+	AuditWorkspaceStop    AuditAction = "workspace.stop"
+	AuditWorkspaceDelete  AuditAction = "workspace.delete"
+	AuditWorkspaceTimeout AuditAction = "workspace.timeout"
+	AuditSnapshotCreate   AuditAction = "snapshot.create"
+	AuditSnapshotRestore  AuditAction = "snapshot.restore"
+	AuditPrebuildCreate   AuditAction = "prebuild.create"
+	AuditTeamCreate       AuditAction = "team.create"
+	AuditTeamUpdate       AuditAction = "team.update"
+	AuditTeamDelete       AuditAction = "team.delete"
+	AuditQuotaUpdate      AuditAction = "quota.update"
+	AuditUserLogin        AuditAction = "user.login"
+	AuditUserRoleChange   AuditAction = "user.role_change"
+)
+
+type AuditEntry struct {
+	ID          uuid.UUID  `json:"id"`
+	Action      AuditAction `json:"action"`
+	UserID      uuid.UUID  `json:"user_id"`
+	TargetID    *string    `json:"target_id,omitempty"`
+	TargetType  *string    `json:"target_type,omitempty"`
+	Metadata    *string    `json:"metadata,omitempty"`
+	IPAddress   string     `json:"ip_address"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+type BillingRecord struct {
+	ID          uuid.UUID  `json:"id"`
+	WorkspaceID uuid.UUID  `json:"workspace_id"`
+	TeamID      *uuid.UUID `json:"team_id,omitempty"`
+	UserID      uuid.UUID  `json:"user_id"`
+	CPUCores    float64    `json:"cpu_cores"`
+	MemoryGB    float64    `json:"memory_gb"`
+	DiskGB      float64    `json:"disk_gb"`
+	GPUCount    int        `json:"gpu_count"`
+	DurationMin int        `json:"duration_min"`
+	Cost        float64    `json:"cost"`
+	StartedAt   time.Time  `json:"started_at"`
+	EndedAt     *time.Time `json:"ended_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+type Cluster struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	APIEndpoint string    `json:"api_endpoint"`
+	Kubeconfig  string    `json:"-"`
+	Region      string    `json:"region,omitempty"`
+	Provider    string    `json:"provider,omitempty"`
+	Enabled     bool      `json:"enabled"`
+	Labels      []string  `json:"labels,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type WorkspaceStatus string
