@@ -10,3 +10,4 @@ data:
   RESTIC_REPOSITORY: {{ .Values.config.snapshot.repository | quote }}
   SNAPSHOT_INTERVAL: {{ .Values.config.snapshot.interval | quote }}
   RESTIC_IMAGE: {{ .Values.config.snapshot.resticImage | quote }}
+  IDLE_TIMEOUT: {{ .Values.config.idleTimeout | default 20 | quote }}
