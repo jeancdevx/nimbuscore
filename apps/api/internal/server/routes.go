@@ -1,6 +1,7 @@
 package server
 
 import (
+	"expvar"
 	"net/http"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/nimbuscore/apps/api/internal/handler"
 	"github.com/nimbuscore/apps/api/internal/middleware"
+	"github.com/nimbuscore/pkg/api"
 	"github.com/nimbuscore/pkg/auth"
 )
 
@@ -32,10 +34,12 @@ func (s *Server) Routes() http.Handler {
 
 	jwtIssuer := auth.NewJWTIssuer(s.cfg.Auth.JWTSecret, time.Duration(s.cfg.Auth.SessionTTL)*time.Hour)
 	jwtMiddleware := auth.Middleware(jwtIssuer)
+	auditMiddleware := middleware.AuditLogger(s.db)
 
 	h := handler.New(s.cfg, s.db, s.rdb, s.rmq, jwtIssuer)
 
 	r.Get("/health", h.Health)
+	r.Get("/metrics", expvar.Handler().ServeHTTP)
 
 	r.Route("/auth", func(r chi.Router) {
 		r.Get("/login", h.AuthLogin)
@@ -44,19 +48,40 @@ func (s *Server) Routes() http.Handler {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Use(jwtMiddleware)
+		r.Use(auditMiddleware)
+		r.Use(middleware.RBACInjector)
 
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/", h.ListUsers)
 			r.Get("/me", h.GetCurrentUser)
 			r.Get("/{id}", h.GetUser)
+			r.With(middleware.RequirePermission(api.PermissionManageSystem)).
+				Patch("/{id}/role", h.UpdateUserRole)
 		})
 
 		r.Route("/teams", func(r chi.Router) {
 			r.Get("/", h.ListTeams)
-			r.Post("/", h.CreateTeam)
+			r.With(middleware.RequirePermission(api.PermissionManageTeams)).
+				Post("/", h.CreateTeam)
 			r.Get("/{id}", h.GetTeam)
-			r.Patch("/{id}", h.UpdateTeam)
-			r.Delete("/{id}", h.DeleteTeam)
+			r.With(middleware.RequirePermission(api.PermissionManageTeams)).
+				Patch("/{id}", h.UpdateTeam)
+			r.With(middleware.RequirePermission(api.PermissionManageTeams)).
+				Delete("/{id}", h.DeleteTeam)
+
+			r.Route("/{teamId}/quota", func(r chi.Router) {
+				r.Get("/", h.GetQuota)
+				r.With(middleware.RequirePermission(api.PermissionManageQuotas)).
+					Put("/", h.UpsertQuota)
+				r.With(middleware.RequirePermission(api.PermissionManageQuotas)).
+					Delete("/", h.DeleteQuota)
+				r.Get("/check", h.CheckQuota)
+			})
+
+			r.Route("/{teamId}/billing", func(r chi.Router) {
+				r.With(middleware.RequirePermission(api.PermissionViewBilling)).
+					Get("/", h.GetBilling)
+			})
 		})
 
 		r.Route("/workspaces", func(r chi.Router) {
@@ -83,11 +108,19 @@ func (s *Server) Routes() http.Handler {
 			r.Delete("/{id}", h.DeletePrebuild)
 		})
 
-		r.Route("/teams/{teamId}/quota", func(r chi.Router) {
-			r.Get("/", h.GetQuota)
-			r.Put("/", h.UpsertQuota)
-			r.Delete("/", h.DeleteQuota)
-			r.Get("/check", h.CheckQuota)
+		r.Route("/admin", func(r chi.Router) {
+			r.Use(middleware.RequirePermission(api.PermissionManageSystem))
+
+			r.Route("/audit-log", func(r chi.Router) {
+				r.With(middleware.RequirePermission(api.PermissionReadAuditLog)).
+					Get("/", h.ListAuditLogs)
+			})
+
+			r.Route("/clusters", func(r chi.Router) {
+				r.Get("/", h.ListClusters)
+				r.Post("/", h.CreateCluster)
+				r.Delete("/{id}", h.DeleteCluster)
+			})
 		})
 	})
 
