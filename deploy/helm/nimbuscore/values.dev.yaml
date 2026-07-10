@@ -1,0 +1,29 @@
+ingress:
+  hosts:
+    - host: api.dev.nimbuscore.io
+      paths:
+        - path: /
+          pathType: Prefix
+
+config:
+  logLevel: debug
+  oidc:
+    issuer: https://dex.dev.nimbuscore.io
+    redirectUrl: https://api.dev.nimbuscore.io/auth/callback
+  ingress:
+    host: dev.nimbuscore.io
+
+api:
+  replicas: 1
+  autoscaling:
+    enabled: false
+
+postgresql:
+  primary:
+    persistence:
+      size: 5Gi
+
+redis:
+  master:
+    persistence:
+      size: 2Gi
