@@ -34,8 +34,18 @@ func main() {
 	defer db.Close()
 
 	rdb := cache.NewRedis(cfg.Redis.URL, cfg.Redis.Password, cfg.Redis.DB)
-	if err := rdb.Ping(ctx); err != nil {
-		slog.Error("failed to connect to redis", "error", err)
+
+	var pingErr error
+	for range 5 {
+		pingErr = rdb.Ping(ctx).Err()
+		if pingErr == nil {
+			break
+		}
+		slog.Error("failed to connect to redis", "error", pingErr.Error())
+		time.Sleep(2 * time.Second)
+	}
+	if pingErr != nil {
+		slog.Error("redis connection failed after retries", "error", pingErr.Error())
 		os.Exit(1)
 	}
 
@@ -100,12 +110,13 @@ func loadConfig() api.APIConfig {
 			URL: getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672"),
 		},
 		Auth: api.AuthConfig{
-			Issuer:       getEnv("OIDC_ISSUER", "http://localhost:5556/dex"),
-			ClientID:     getEnv("OIDC_CLIENT_ID", "nimbuscore"),
-			ClientSecret: getEnv("OIDC_CLIENT_SECRET", ""),
-			RedirectURL:  getEnv("OIDC_REDIRECT_URL", "http://localhost:8080/auth/callback"),
-			JWTSecret:    getEnv("JWT_SECRET", "change-me-in-production"),
-			SessionTTL:   24,
+			Issuer:         getEnv("OIDC_ISSUER", "http://localhost:5556/dex"),
+			ExternalIssuer: getEnv("OIDC_EXTERNAL_ISSUER", "http://localhost:5556/dex"),
+			ClientID:       getEnv("OIDC_CLIENT_ID", "nimbuscore"),
+			ClientSecret:   getEnv("OIDC_CLIENT_SECRET", ""),
+			RedirectURL:    getEnv("OIDC_REDIRECT_URL", "http://localhost:8080/auth/callback"),
+			JWTSecret:      getEnv("JWT_SECRET", "change-me-in-production"),
+			SessionTTL:     24,
 		},
 	}
 }
