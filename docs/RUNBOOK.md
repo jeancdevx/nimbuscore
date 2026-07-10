@@ -2,12 +2,12 @@
 
 ## Stack
 
-| Component                      | Lenguaje   | Puerto                              |
+| Componente                     | Lenguaje   | Puerto                              |
 | ------------------------------ | ---------- | ----------------------------------- |
 | API (Chi)                      | Go 1.26    | `:8080`                             |
 | Operator (controller-runtime)  | Go 1.26    | `:8080` (metrics), `:8081` (health) |
 | Workspace Manager              | Go 1.26    | — (RabbitMQ consumer)               |
-| Dashboard (Astro 7 + React 19) | TypeScript | `:4321` (dev)                       |
+| Dashboard (Astro 7 + React 19) | TypeScript | `:5173` (dev) / `:4321` (preview)   |
 | PostgreSQL 17                  | —          | `:5432`                             |
 | Redis 7                        | —          | `:6379`                             |
 | RabbitMQ 4                     | —          | `:5672` / `:15672` (admin)          |
@@ -17,45 +17,153 @@
 
 ## 1. Primer inicio (local)
 
+### Prerequisitos
+
+- Docker + Docker Compose
+- Go 1.26+ (`mise install go@1.26.5`)
+- Node.js 22+ (`mise install node@22`)
+- pnpm 11+ (`mise install pnpm@11`)
+- Task (task runner)
+
+Activar mise:
+
 ```bash
-# 1. Activar mise
 eval "$(mise activate zsh)"
+```
 
-# 2. Instalar dependencias
-pnpm install
+### Levantar todo
 
-# 3. Iniciar infraestructura (PostgreSQL, Redis, RabbitMQ, Dex)
+```bash
+# 1. Dependencias del frontend
+cd web/dashboard && pnpm install && cd ../..
+
+# 2. Iniciar infraestructura (PostgreSQL, Redis, RabbitMQ, Dex)
 docker compose up -d
 
-# 4. Inicializar base de datos (sql init ya corre automático con compose)
-#    Si querés hacerlo manual:
-#   docker compose exec -T postgresql psql -U nimbuscore nimbuscore < deploy/db/init.sql
+# 3. Buildear y levantar API
+docker compose up -d --build api
 
-# 5. Iniciar API
-cd apps/api && go run ./cmd/
-
-# 6. En otra terminal — iniciar Dashboard (opcional)
+# 4. En otra terminal — frontend dev
 cd web/dashboard && pnpm dev
 ```
 
-La API queda escuchando en `http://localhost:8080`.
+### Servicios
+
+| Servicio    | URL                                      |
+| ----------- | ---------------------------------------- |
+| API         | `http://localhost:8080`                  |
+| Dashboard   | `http://localhost:5173`                  |
+| Dex (OIDC)  | `http://localhost:5556/dex`              |
+| RabbitMQ UI | `http://localhost:15672` (user:changeme) |
 
 ---
 
-## 2. Comandos útiles (Taskfile)
+## 2. Flujo de autenticación
 
-```bash
-task               # Listar todas las tasks disponibles
-task ci            # CI completo (vet + lint + test + build + format + web)
-task go:test       # Tests Go con race detector
-task go:build      # Compilar todos los binarios
-task format        # Formatear todo con Prettier
-task web:dev       # Servidor de desarrollo Astro
+```
+Browser                    Frontend (:5173)           API (:8080)              Dex (:5556)
+  │                             │                        │                        │
+  │  click "Sign in with SSO"   │                        │                        │
+  │────────────────────────────>│                        │                        │
+  │                             │  GET /auth/login       │                        │
+  │                             │───────────────────────>│                        │
+  │                             │  307 → Dex auth page   │                        │
+  │                             │<───────────────────────│                        │
+  │  302 → http://dex:5556/     │                        │                        │
+  │<────────────────────────────│                        │                        │
+  │                             │                        │                        │
+  │──── Login con credenciales ─────────────────────────────────────────────────>│
+  │                             │                        │                        │
+  │  302 → http://localhost:5173/?code=xxx               │                        │
+  │<────────────────────────────────────────────────────────────────────────────│
+  │                             │                        │                        │
+  │  App.tsx lee `code` param   │                        │                        │
+  │  fetch /auth/callback?code=x│                        │                        │
+  │────────────────────────────>│  proxy (:5173 → :8080) │                        │
+  │                             │───────────────────────>│                        │
+  │                             │  {token, user_id}      │  Exchange code → token │
+  │                             │<───────────────────────│──────────────────────>│
+  │                             │                        │                        │
+  │  Guarda token en localStorage                        │                        │
+  │  window.history.replaceState('/',)                   │                        │
+  │  setAuthenticated(true)                              │                        │
 ```
 
+### Credenciales de prueba (Dex)
+
+| Campo      | Valor                 |
+| ---------- | --------------------- |
+| Email      | `admin@nimbuscore.io` |
+| Contraseña | `admin123`            |
+| Username   | `admin`               |
+
+> **Nota**: Dex usa SQLite (`deploy/dex/config.yaml`). Los datos persisten
+> dentro del container. Si necesitás resetear, borrá el container y recreate.
+
 ---
 
-## 3. Endpoints de la API
+## 3. Dashboard — uso guiado
+
+### Login
+
+Ir a `http://localhost:5173/` → click **"Sign in with SSO"** → login en Dex.
+
+### Página principal
+
+Muestra:
+
+- Cantidad de workspaces **Running** / **Total**
+- Nombre del usuario autenticado
+- Botón **"New Workspace"**
+
+### Crear workspace
+
+Click **"New Workspace"** → formulario:
+
+| Campo      | Descripción                                                            |
+| ---------- | ---------------------------------------------------------------------- |
+| Name       | Nombre del workspace                                                   |
+| Image      | Imagen DevContainer (default: `ghcr.io/nimbuscore/code-server:latest`) |
+| Repository | URL del repo a clonar (opcional)                                       |
+| Branch     | Rama (default: `main`)                                                 |
+| Resources  | CPU, Memoria, Disco, GPU                                               |
+| Ports      | Puertos a exponer (subdomain, port, protocol)                          |
+
+El workspace se crea con status `pending`. Requiere Kubernetes + operator para
+pasar a `running`.
+
+### Admin panel
+
+`http://localhost:5173/admin`
+
+Muestra:
+
+- **Users**: tabla de usuarios registrados
+- **Teams**: tabla de equipos (vacío si no hay)
+
+Solo accesible para usuarios con rol `admin` o `team_admin`.
+
+---
+
+## 4. Variables de entorno — compose.yml
+
+| Variable               | Descripción                              | Default                                                                       |
+| ---------------------- | ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `HOST`                 | Host de escucha de la API                | `0.0.0.0`                                                                     |
+| `PORT`                 | Puerto de la API                         | `8080`                                                                        |
+| `DATABASE_URL`         | Conexión PostgreSQL                      | `postgres://nimbuscore:nimbuscore@postgresql:5432/nimbuscore?sslmode=disable` |
+| `REDIS_URL`            | Conexión Redis                           | `redis://redis:6379`                                                          |
+| `RABBITMQ_URL`         | Conexión RabbitMQ                        | `amqp://user:changeme@rabbitmq:5672`                                          |
+| `OIDC_ISSUER`          | URL interna del proveedor OIDC           | `http://host.docker.internal:5556/dex`                                        |
+| `OIDC_EXTERNAL_ISSUER` | URL externa del proveedor (para browser) | `http://localhost:5556/dex`                                                   |
+| `OIDC_CLIENT_ID`       | Client ID OIDC                           | `nimbuscore`                                                                  |
+| `OIDC_CLIENT_SECRET`   | Client Secret OIDC                       | `nimbuscore-secret`                                                           |
+| `OIDC_REDIRECT_URL`    | Redirect URI del callback                | `http://localhost:5173`                                                       |
+| `JWT_SECRET`           | Secreto para firmar JWTs                 | `local-dev-secret-change-in-production`                                       |
+
+---
+
+## 5. Endpoints de la API
 
 ### Públicos
 
@@ -71,10 +179,10 @@ GET  /auth/callback         → callback OIDC, devuelve {token, user_id}
 #### Usuarios
 
 ```
-GET  /api/users             → listar usuarios (admin)
+GET  /api/users             → listar usuarios (manage:system)
 GET  /api/users/me          → usuario actual
 GET  /api/users/{id}        → usuario por ID
-PATCH /api/users/{id}/role  → cambiar rol (admin, requiere manage:system)
+PATCH /api/users/{id}/role  → cambiar rol (manage:system)
 ```
 
 #### Teams
@@ -117,7 +225,7 @@ GET    /api/prebuilds/{id}     → prebuild por ID
 DELETE /api/prebuilds/{id}     → eliminar prebuild
 ```
 
-#### Quotas (por team)
+#### Quotas
 
 ```
 GET   /api/teams/{id}/quota        → ver quota + uso actual
@@ -132,6 +240,8 @@ GET   /api/teams/{id}/quota/check  → verificar si hay cupo
 GET /api/teams/{id}/billing?since=2025-01-01T00:00:00Z&until=2025-12-31T23:59:59Z
 ```
 
+Requiere permiso `view:billing`.
+
 #### Admin (manage:system)
 
 ```
@@ -143,17 +253,35 @@ DELETE /api/admin/clusters/{id}   → eliminar cluster
 
 ---
 
-## 4. Flujo de creación de workspace (extremo a extremo)
+## 6. Roles y permisos
+
+| Rol          | Permisos                                                                 |
+| ------------ | ------------------------------------------------------------------------ |
+| `admin`      | manage:system, read:audit_log, manage:teams, manage:quotas, view:billing |
+| `team_admin` | manage:teams, manage:quotas, view:billing                                |
+| `user`       | (ninguno especial)                                                       |
+
+Cambiar rol de un usuario:
 
 ```bash
-# Variables
-TOKEN="<jwt obtenido de /auth/callback>"
+curl -X PATCH /api/users/{id}/role \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "admin"}'
+```
+
+---
+
+## 7. Flujo de creación de workspace (curl)
+
+```bash
+TOKEN="<jwt>"
 API="http://localhost:8080"
 
 # 1. Ver mi usuario
 curl -s $API/api/users/me -H "Authorization: Bearer $TOKEN" | jq
 
-# 2. Crear un workspace
+# 2. Crear workspace (queda pending hasta que operator lo reconcilie)
 curl -s -X POST $API/api/workspaces \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -169,125 +297,88 @@ curl -s -X POST $API/api/workspaces \
     ]
   }' | jq
 
-# 3. Iniciar workspace
-curl -s -X POST "$API/api/workspaces/$WS_ID/start" \
-  -H "Authorization: Bearer $TOKEN" | jq
+# 3. Ver todos los workspaces
+curl -s $API/api/workspaces -H "Authorization: Bearer $TOKEN" | jq
 
-# 4. Ver estado
-curl -s "$API/api/workspaces/$WS_ID" \
-  -H "Authorization: Bearer $TOKEN" | jq '.status'
-
-# 5. Detener
-curl -s -X POST "$API/api/workspaces/$WS_ID/stop" \
-  -H "Authorization: Bearer $TOKEN" | jq
-
-# 6. Crear snapshot manual
-curl -s -X POST "$API/api/workspaces/$WS_ID/snapshots" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"action":"backup"}' | jq
-
-# 7. Heartbeat (evita idle timeout)
+# 4. Heartbeat (evita idle timeout)
 curl -s -X POST "$API/api/workspaces/$WS_ID/heartbeat" \
   -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 ---
 
-## 5. Operador (Kubernetes)
+## 8. Operador (Kubernetes)
 
-Requiere un cluster k8s (kind, minikube, o real).
+Ver [`docs/KUBERNETES_SETUP.md`](./KUBERNETES_SETUP.md) para instalación
+detallada.
 
 ```bash
 # 1. Instalar CRDs
 kubectl apply -f deploy/helm/nimbuscore/crds/
 
-# 2. Ver CRDs instalados
-kubectl get crd | grep nimbuscore
-
-# 3. Correr operador local (apunta al kubeconfig actual)
+# 2. Correr operador local (apunta al kubeconfig actual)
 cd apps/operator && go run ./cmd/
 
-# 4. Ver workspaces como CRDs
+# 3. Ver workspaces como CRDs
 kubectl get workspaces -A
 kubectl get ws -A
 
-# 5. Ver prebuilds
+# 4. Ver prebuilds
 kubectl get prebuilds -A
 kubectl get pb -A
 ```
 
 ---
 
-## 6. Deploy con Helm
+## 9. Deploy con Helm
 
 ```bash
-# Repositorio de dependencias (Bitnami)
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm dependency update deploy/helm/nimbuscore/
 
-# Instalar en dev
 helm install nimbuscore deploy/helm/nimbuscore \
   --values deploy/helm/nimbuscore/values.dev.yaml \
-  --set secrets.jwt="mi-jwt-secret" \
-  --set secrets.oidcClientSecret="mi-oidc-secret"
-
-# Instalar en prod
-helm upgrade --install nimbuscore deploy/helm/nimbuscore \
-  --values deploy/helm/nimbuscore/values.prod.yaml \
   --set secrets.jwt="$(openssl rand -base64 32)" \
   --set secrets.oidcClientSecret="$(openssl rand -base64 32)" \
   --set secrets.resticPassword="$(openssl rand -base64 32)"
-
-# Ver estado
-helm status nimbuscore
-kubectl get pods
-kubectl get svc
-kubectl get ingress
 ```
 
 ---
 
-## 7. ArgoCD (GitOps)
+## 10. ArgoCD (GitOps)
 
 ```bash
-# Aplicar project + application-set
 kubectl apply -f deploy/helm/nimbuscore/argocd/
-
-# Ver en UI ArgoCD
-argocd app list | grep nimbuscore
 ```
 
 ---
 
-## 8. Monitoreo
+## 11. Monitoreo
 
-| Herramienta            | URL                                                                          |
-| ---------------------- | ---------------------------------------------------------------------------- |
-| API metrics            | `GET http://localhost:8080/metrics`                                          |
-| Operator metrics       | `GET http://localhost:8080/metrics` (controller-runtime)                     |
-| RabbitMQ admin         | `http://localhost:15672` (user:changeme)                                     |
-| Grafana (si instalado) | Dashboards: NimbusCore Overview                                              |
-| Prometheus alerts      | PrometheusRules en `deploy/helm/nimbuscore/dashboards/prometheus-rules.yaml` |
+| Herramienta       | URL                                                       |
+| ----------------- | --------------------------------------------------------- |
+| API metrics       | `GET http://localhost:8080/metrics`                       |
+| Operator metrics  | `http://localhost:8080/metrics` (controller-runtime)      |
+| RabbitMQ admin    | `http://localhost:15672` (user:changeme)                  |
+| Grafana           | Dashboard: NimbusCore Overview (si instalado)             |
+| Prometheus alerts | `deploy/helm/nimbuscore/dashboards/prometheus-rules.yaml` |
 
-### Alertas configuradas
+### Métricas expvar
 
-| Alerta                     | Severidad | Condición                     |
-| -------------------------- | --------- | ----------------------------- |
-| API Down                   | critical  | `up == 0` por 1m              |
-| Operator Down              | critical  | `up == 0` por 2m              |
-| High Reconciliation Errors | warning   | `rate(errors) > 0.1` por 5m   |
-| High Latency               | warning   | p95 > 1s por 5m               |
-| Replica Mismatch           | warning   | disponibles < deseados        |
-| Quota Exceeded             | warning   | uso > 90% por 10m             |
-| High Error Rate            | warning   | tasa errores > 5%             |
-| Vulnerability Found        | critical  | vulnerabilidades críticas > 0 |
+| Nombre                             | Tipo     | Descripción                   |
+| ---------------------------------- | -------- | ----------------------------- |
+| `nimbuscore_requests_total`        | contador | Total de requests HTTP        |
+| `nimbuscore_active_workspaces`     | gauge    | Workspaces con status running |
+| `nimbuscore_workspace_hours_total` | contador | Horas acumuladas de workspace |
+| `nimbuscore_snapshots_total`       | contador | Snapshots realizados          |
+| `nimbuscore_prebuilds_total`       | contador | Prebuilds ejecutados          |
+| `nimbuscore_errors_total`          | contador | Errores internos              |
 
 ---
 
-## 9. CI/CD (GitHub Actions)
+## 12. CI/CD (GitHub Actions)
 
-Archivo: `.github/workflows/ci.yml`
+Ver `.github/workflows/ci.yml`.
 
 | Job        | Dispara en                     | Qué hace                                                       |
 | ---------- | ------------------------------ | -------------------------------------------------------------- |
@@ -298,7 +389,7 @@ Archivo: `.github/workflows/ci.yml`
 
 ---
 
-## 10. Arquitectura de mensajes (RabbitMQ)
+## 13. Arquitectura de mensajes (RabbitMQ)
 
 ```
 Exchange: nimbuscore.workspace (topic, durable)
@@ -315,19 +406,7 @@ Eventos:
 
 ---
 
-## 11. Quotas por team
-
-- Al crear workspace con `team_id`, la API verifica `quotas` y rechaza con 409
-  si se excede `max_workspaces`
-- `GET /api/teams/{id}/quota/check` devuelve uso actual vs máximo
-- El idle watcher detiene workspaces inactivos después de `IDLE_TIMEOUT` minutos
-  (default 20)
-- El heartbeat endpoint (`POST /workspaces/{id}/heartbeat`) actualiza
-  `last_activity`
-
----
-
-## 12. Troubleshooting
+## 14. Troubleshooting
 
 ```bash
 # Ver logs de la API
@@ -345,6 +424,15 @@ kubectl describe ws <workspace-name>
 # Ver jobs de prebuild
 kubectl get jobs -A
 
-# Ver snapshots programados (logs workspace-manager)
-docker compose logs -f workspace-manager 2>/dev/null || echo "Corre en k8s"
+# Resetear base de datos (pierde todos los datos)
+docker compose down -v && docker compose up -d
+
+# Problemas de OIDC — verificar que Dex responde
+curl http://localhost:5556/dex/.well-known/openid-configuration
+
+# Verificar que el proxy de Vite funciona
+curl -s http://localhost:5173/api/health
+
+# Token expirado — loguearse de nuevo
+# (borrar nimbuscore_token de localStorage y recargar)
 ```
