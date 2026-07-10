@@ -23,7 +23,7 @@ func ListAuditLogs(ctx context.Context, db *pgxpool.Pool, limit, offset int) ([]
 	}
 	defer rows.Close()
 
-	var entries []api.AuditEntry
+	entries := []api.AuditEntry{}
 	for rows.Next() {
 		var e api.AuditEntry
 		if err := rows.Scan(&e.ID, &e.Action, &e.UserID, &e.TargetID, &e.TargetType, &e.Metadata, &e.IPAddress, &e.CreatedAt); err != nil {
@@ -47,7 +47,7 @@ func ListAuditLogsByUser(ctx context.Context, db *pgxpool.Pool, userID uuid.UUID
 	}
 	defer rows.Close()
 
-	var entries []api.AuditEntry
+	entries := []api.AuditEntry{}
 	for rows.Next() {
 		var e api.AuditEntry
 		if err := rows.Scan(&e.ID, &e.Action, &e.UserID, &e.TargetID, &e.TargetType, &e.Metadata, &e.IPAddress, &e.CreatedAt); err != nil {
@@ -80,7 +80,7 @@ func GetBillingByTeam(ctx context.Context, db *pgxpool.Pool, teamID uuid.UUID, s
 	}
 	defer rows.Close()
 
-	var records []api.BillingRecord
+	records := []api.BillingRecord{}
 	for rows.Next() {
 		var r api.BillingRecord
 		if err := rows.Scan(&r.ID, &r.WorkspaceID, &r.TeamID, &r.UserID, &r.CPUCores, &r.MemoryGB,
