@@ -40,6 +40,18 @@ func (p *Provider) AuthURL(state string) string {
 	return p.oauthConfig.AuthCodeURL(state)
 }
 
+func (p *Provider) ExternalAuthURL(state, externalIssuer string) string {
+	base := p.oauthConfig.AuthCodeURL(state)
+	ep := p.oauthConfig.Endpoint.AuthURL
+	// Swap the internal host:port for the external one in the auth URL
+	for i := 0; i < len(base)-len(ep); i++ {
+		if base[i:i+len(ep)] == ep {
+			return externalIssuer + "/auth" + base[i+len(ep):]
+		}
+	}
+	return base
+}
+
 func (p *Provider) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
 	return p.oauthConfig.Exchange(ctx, code)
 }
