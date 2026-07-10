@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nimbuscore.manager.fullname" . }}
+  labels: {{ include "nimbuscore.manager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.workspaceManager.replicas }}
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "nimbuscore.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: workspace-manager
+  template:
+    metadata:
+      labels: {{ include "nimbuscore.manager.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-workspace-manager.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "nimbuscore.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: workspace-manager
+          image: "{{ .Values.image.registry }}/nimbuscore-workspace-manager:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "nimbuscore.manager.fullname" . }}
+            - secretRef:
+                name: {{ include "nimbuscore.fullname" . }}
+          resources: {{ toYaml .Values.workspaceManager.resources | nindent 12 }}
