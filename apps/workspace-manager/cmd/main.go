@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -58,7 +59,7 @@ func main() {
 	idlWatcher := watcher.NewIdleWatcher(k8sClient, eventPublisher, cfg.IdleTimeout)
 	go idlWatcher.Start(ctx)
 
-	snapshotScheduler := snapshot.NewScheduler(snapshotSvc, eventPublisher, cfg.SnapshotSchedule)
+	snapshotScheduler := snapshot.NewScheduler(snapshotSvc, eventPublisher, cfg.SnapshotSchedule, k8sClient)
 	go snapshotScheduler.Start(ctx)
 
 	slog.Info("workspace-manager starting", "rabbitmq", cfg.RabbitMQURL)
@@ -107,7 +108,7 @@ func loadConfig() appConfig {
 			Host:      getEnv("INGRESS_HOST", "dev.nimbuscore.io"),
 			TLSSecret: getEnv("INGRESS_TLS_SECRET", ""),
 		},
-		IdleTimeout:     20,
+		IdleTimeout:     getEnvInt("IDLE_TIMEOUT", 20),
 		SnapshotSchedule: getEnv("SNAPSHOT_SCHEDULE", "*/30 * * * *"),
 	}
 }
@@ -117,4 +118,19 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if i, err := parseInt(v); err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+
+func parseInt(s string) (int, error) {
+	var i int
+	_, err := fmt.Sscanf(s, "%d", &i)
+	return i, err
 }
