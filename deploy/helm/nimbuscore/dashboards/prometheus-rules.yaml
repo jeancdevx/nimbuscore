@@ -1,0 +1,60 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "name": "nimbuscore",
+      "rules": [
+        {
+          "alert": "NimbusCoreApiDown",
+          "expr": "up{app_kubernetes_io_component=\"api\"} == 0",
+          "for": "1m",
+          "labels": { "severity": "critical" },
+          "annotations": {
+            "summary": "NimbusCore API is down",
+            "description": "The API server has been unreachable for more than 1 minute."
+          }
+        },
+        {
+          "alert": "NimbusCoreOperatorDown",
+          "expr": "up{app_kubernetes_io_component=\"operator\"} == 0",
+          "for": "2m",
+          "labels": { "severity": "critical" },
+          "annotations": {
+            "summary": "NimbusCore Operator is down",
+            "description": "The operator has been unreachable for more than 2 minutes."
+          }
+        },
+        {
+          "alert": "NimbusCoreHighReconciliationErrors",
+          "expr": "rate(controller_runtime_reconcile_errors_total{app_kubernetes_io_component=\"operator\"}[5m]) > 0.1",
+          "for": "5m",
+          "labels": { "severity": "warning" },
+          "annotations": {
+            "summary": "High reconciliation error rate",
+            "description": "The operator is experiencing reconciliation errors."
+          }
+        },
+        {
+          "alert": "NimbusCoreApiHighLatency",
+          "expr": "rate(http_request_duration_seconds_sum{app_kubernetes_io_component=\"api\"}[5m]) / rate(http_request_duration_seconds_count{app_kubernetes_io_component=\"api\"}[5m]) > 1",
+          "for": "5m",
+          "labels": { "severity": "warning" },
+          "annotations": {
+            "summary": "API high latency",
+            "description": "API response time is above 1 second on average."
+          }
+        },
+        {
+          "alert": "NimbusCoreReplicaMismatch",
+          "expr": "kube_deployment_status_replicas_available{deployment=~\"nimbuscore-(api|operator)\"} < kube_deployment_spec_replicas{deployment=~\"nimbuscore-(api|operator)\"}",
+          "for": "5m",
+          "labels": { "severity": "warning" },
+          "annotations": {
+            "summary": "Replica count mismatch",
+            "description": "A NimbusCore deployment has fewer available replicas than desired."
+          }
+        }
+      ]
+    }
+  ]
+}
