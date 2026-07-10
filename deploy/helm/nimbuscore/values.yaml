@@ -1,0 +1,162 @@
+---
+# Global
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  registry: ghcr.io/nimbuscore
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Component config
+api:
+  replicas: 2
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+
+operator:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+
+workspaceManager:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: api.dev.nimbuscore.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - api.dev.nimbuscore.io
+      secretName: nimbuscore-api-tls
+
+# App config
+config:
+  logLevel: info
+  oidc:
+    issuer: https://dex.dev.nimbuscore.io
+    clientId: nimbuscore
+    redirectUrl: https://api.dev.nimbuscore.io/auth/callback
+  ingress:
+    host: dev.nimbuscore.io
+    tlsSecret: nimbuscore-wildcard-tls
+    enabled: true
+  database:
+    url: postgres://nimbuscore:changeme@nimbuscore-postgresql:5432/nimbuscore?sslmode=disable
+  redis:
+    url: redis://:changeme@nimbuscore-redis-master:6379/0
+  rabbitmq:
+    url: amqp://user:changeme@nimbuscore-rabbitmq:5672
+  snapshot:
+    enabled: true
+    repository: s3:s3.amazonaws.com/nimbuscore-snapshots
+    interval: 1h
+    resticImage: restic/restic:latest
+
+# Secrets (override via --set or external secrets)
+secrets:
+  jwt: "change-me-in-production"
+  oidcClientSecret: ""
+  awsAccessKeyId: ""
+  awsSecretAccessKey: ""
+  resticPassword: ""
+
+# Infrastructure dependencies (Bitnami charts)
+postgresql:
+  enabled: true
+  auth:
+    username: nimbuscore
+    password: changeme
+    database: nimbuscore
+  primary:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+    persistence:
+      size: 10Gi
+
+redis:
+  enabled: true
+  auth:
+    password: changeme
+  master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    persistence:
+      size: 5Gi
+
+rabbitmq:
+  enabled: true
+  auth:
+    username: user
+    password: changeme
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  persistence:
+    size: 8Gi
+
+# Monitoring
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    labels:
+      release: kube-prometheus-stack
