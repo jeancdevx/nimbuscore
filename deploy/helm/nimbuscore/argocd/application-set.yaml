@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nimbuscore
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            server: https://kubernetes.default.svc
+            namespace: nimbuscore-dev
+          - env: staging
+            server: https://kubernetes.default.svc
+            namespace: nimbuscore-staging
+          - env: prod
+            server: https://kubernetes.default.svc
+            namespace: nimbuscore-prod
+  template:
+    metadata:
+      name: "nimbuscore-{{ .env }}"
+      labels:
+        app: nimbuscore
+        environment: "{{ .env }}"
+    spec:
+      project: nimbuscore
+      source:
+        repoURL: https://github.com/nimbuscore/nimbuscore
+        targetRevision: "{{ .env }}"
+        path: deploy/helm/nimbuscore
+        helm:
+          valueFiles:
+            - "values.yaml"
+            - "values.{{ .env }}.yaml"
+      destination:
+        server: "{{ .server }}"
+        namespace: "{{ .namespace }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
