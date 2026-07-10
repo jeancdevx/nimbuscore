@@ -8,10 +8,11 @@ ingress:
 config:
   logLevel: debug
   oidc:
-    issuer: https://dex.dev.nimbuscore.io
-    redirectUrl: https://api.dev.nimbuscore.io/auth/callback
+    issuer: http://host.docker.internal:5556/dex
+    clientId: nimbuscore
+    redirectUrl: http://nimbuscore.local/auth/callback
   ingress:
-    host: dev.nimbuscore.io
+    host: nimbuscore.local
 
 monitoring:
   serviceMonitor:
@@ -22,12 +23,40 @@ api:
   autoscaling:
     enabled: false
 
+operator:
+  replicas: 1
+
+workspaceManager:
+  replicas: 1
+
 postgresql:
+  enabled: true
+  auth:
+    username: nimbuscore
+    password: nimbuscore
+    database: nimbuscore
   primary:
     persistence:
       size: 5Gi
 
 redis:
+  enabled: true
+  auth:
+    password: nimbuscore
   master:
     persistence:
       size: 2Gi
+
+rabbitmq:
+  enabled: true
+  auth:
+    username: user
+    password: changeme
+  image:
+    registry: docker.io
+    repository: bitnami/rabbitmq
+    tag: 4.0.5-debian-12-r7
+  initContainerImage:
+    registry: docker.io
+    repository: bitnami/rabbitmq
+    tag: 4.0.5-debian-12-r7
