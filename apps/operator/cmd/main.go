@@ -47,9 +47,15 @@ func main() {
 
 	ingressHost := getEnv("INGRESS_HOST", "dev.nimbuscore.io")
 	tlsSecret := getEnv("INGRESS_TLS_SECRET", "")
+	outputRegistry := getEnv("OUTPUT_REGISTRY", "ghcr.io/nimbuscore")
 
 	if err := controller.RegisterWorkspaceController(mgr, ingressHost, tlsSecret); err != nil {
 		slog.Error("failed to register workspace controller", "error", err)
+		os.Exit(1)
+	}
+
+	if err := controller.RegisterPrebuildController(mgr, outputRegistry); err != nil {
+		slog.Error("failed to register prebuild controller", "error", err)
 		os.Exit(1)
 	}
 
