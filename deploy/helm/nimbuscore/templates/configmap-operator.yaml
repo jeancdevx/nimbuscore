@@ -6,3 +6,4 @@ metadata:
 data:
   INGRESS_HOST: {{ .Values.config.ingress.host | quote }}
   INGRESS_TLS_SECRET: {{ .Values.config.ingress.tlsSecret | quote }}
+  OUTPUT_REGISTRY: {{ .Values.image.registry | quote }}
