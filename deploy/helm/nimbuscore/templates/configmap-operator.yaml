@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nimbuscore.operator.fullname" . }}
+  labels: {{ include "nimbuscore.operator.labels" . | nindent 4 }}
+data:
+  INGRESS_HOST: {{ .Values.config.ingress.host | quote }}
+  INGRESS_TLS_SECRET: {{ .Values.config.ingress.tlsSecret | quote }}
