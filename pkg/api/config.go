@@ -28,10 +28,11 @@ type RabbitMQConfig struct {
 }
 
 type AuthConfig struct {
-	Issuer       string
-	ClientID     string
-	ClientSecret string
-	RedirectURL  string
-	JWTSecret    string
-	SessionTTL   int
+	Issuer         string
+	ExternalIssuer string
+	ClientID       string
+	ClientSecret   string
+	RedirectURL    string
+	JWTSecret      string
+	SessionTTL     int
 }
