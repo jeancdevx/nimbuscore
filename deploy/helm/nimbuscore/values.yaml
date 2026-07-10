@@ -86,6 +86,7 @@ ingress:
 # App config
 config:
   logLevel: info
+  idleTimeout: 20
   oidc:
     issuer: https://dex.dev.nimbuscore.io
     clientId: nimbuscore
