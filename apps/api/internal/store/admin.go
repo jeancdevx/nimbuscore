@@ -99,7 +99,7 @@ func ListClusters(ctx context.Context, db *pgxpool.Pool) ([]api.Cluster, error) 
 	}
 	defer rows.Close()
 
-	var clusters []api.Cluster
+	clusters := []api.Cluster{}
 	for rows.Next() {
 		var c api.Cluster
 		if err := rows.Scan(&c.ID, &c.Name, &c.APIEndpoint, &c.Region, &c.Provider, &c.Enabled, &c.Labels, &c.CreatedAt, &c.UpdatedAt); err != nil {
