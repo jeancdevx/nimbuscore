@@ -23,8 +23,8 @@ func (ws *Workspace) DeepCopy() *Workspace {
 func (ws *WorkspaceSpec) DeepCopy() *WorkspaceSpec {
 	out := *ws
 
-	if out.Ingress.Ports != nil {
-		ports := make([]int, len(ws.Ingress.Ports))
+	if ws.Ingress.Ports != nil {
+		ports := make([]PortRule, len(ws.Ingress.Ports))
 		copy(ports, ws.Ingress.Ports)
 		out.Ingress.Ports = ports
 	}
@@ -39,6 +39,11 @@ func (ws *WorkspaceStatus) DeepCopy() *WorkspaceStatus {
 		conds := make([]metav1.Condition, len(ws.Conditions))
 		copy(conds, ws.Conditions)
 		out.Conditions = conds
+	}
+
+	out.PortURLs = make(map[int]string, len(ws.PortURLs))
+	for k, v := range ws.PortURLs {
+		out.PortURLs[k] = v
 	}
 
 	return &out
@@ -57,6 +62,40 @@ func (wl *WorkspaceList) DeepCopy() *WorkspaceList {
 		items := make([]Workspace, len(wl.Items))
 		for i := range wl.Items {
 			items[i] = *wl.Items[i].DeepCopy()
+		}
+		out.Items = items
+	}
+
+	return &out
+}
+
+func (pb *Prebuild) DeepCopyObject() runtime.Object {
+	return pb.DeepCopy()
+}
+
+func (pb *Prebuild) DeepCopy() *Prebuild {
+	out := *pb
+	out.TypeMeta = pb.TypeMeta
+	out.ObjectMeta = *pb.ObjectMeta.DeepCopy()
+	out.Spec = pb.Spec
+	out.Status.Conditions = make([]metav1.Condition, len(pb.Status.Conditions))
+	copy(out.Status.Conditions, pb.Status.Conditions)
+	return &out
+}
+
+func (pl *PrebuildList) DeepCopyObject() runtime.Object {
+	return pl.DeepCopy()
+}
+
+func (pl *PrebuildList) DeepCopy() *PrebuildList {
+	out := *pl
+	out.TypeMeta = pl.TypeMeta
+	out.ListMeta = *pl.ListMeta.DeepCopy()
+
+	if pl.Items != nil {
+		items := make([]Prebuild, len(pl.Items))
+		for i := range pl.Items {
+			items[i] = *pl.Items[i].DeepCopy()
 		}
 		out.Items = items
 	}
