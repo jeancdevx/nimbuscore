@@ -1,0 +1,33 @@
+{{- if .Values.api.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "nimbuscore.api.fullname" . }}
+  labels: {{ include "nimbuscore.api.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "nimbuscore.api.fullname" . }}
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
+  metrics:
+    {{- toYaml .Values.api.autoscaling.metrics | nindent 4 }}
+{{- end }}
+---
+{{- if .Values.operator.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "nimbuscore.operator.fullname" . }}
+  labels: {{ include "nimbuscore.operator.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "nimbuscore.operator.fullname" . }}
+  minReplicas: {{ .Values.operator.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.operator.autoscaling.maxReplicas }}
+  metrics:
+    {{- toYaml .Values.operator.autoscaling.metrics | nindent 4 }}
+{{- end }}
