@@ -21,7 +21,7 @@ func ListWorkspacesByUser(ctx context.Context, db *pgxpool.Pool, userID uuid.UUI
 	}
 	defer rows.Close()
 
-	var workspaces []api.Workspace
+	workspaces := []api.Workspace{}
 	for rows.Next() {
 		ws, err := scanWorkspace(rows)
 		if err != nil {
@@ -43,7 +43,7 @@ func ListWorkspacesByTeam(ctx context.Context, db *pgxpool.Pool, teamID uuid.UUI
 	}
 	defer rows.Close()
 
-	var workspaces []api.Workspace
+	workspaces := []api.Workspace{}
 	for rows.Next() {
 		ws, err := scanWorkspace(rows)
 		if err != nil {
