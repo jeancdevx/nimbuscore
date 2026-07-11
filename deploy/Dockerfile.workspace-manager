@@ -3,6 +3,7 @@ WORKDIR /build
 
 COPY apps/workspace-manager apps/workspace-manager
 COPY pkg/api pkg/api
+COPY pkg/operator pkg/operator
 COPY pkg/workspace pkg/workspace
 
 WORKDIR /build/apps/workspace-manager
