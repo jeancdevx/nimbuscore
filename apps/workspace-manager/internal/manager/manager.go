@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -11,22 +12,29 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/nimbuscore/apps/workspace-manager/internal/snapshot"
+	"github.com/nimbuscore/pkg/api"
+	"github.com/nimbuscore/pkg/operator"
 	"github.com/nimbuscore/pkg/workspace"
 )
 
 type Manager struct {
-	cfg       Config
-	k8s       kubernetes.Interface
-	consumer  *workspace.Consumer
-	publisher *workspace.Publisher
-	snapshots *snapshot.Service
+	cfg            Config
+	k8s            kubernetes.Interface
+	dynamic        dynamic.Interface
+	consumer       *workspace.Consumer
+	publisher      *workspace.Publisher
+	snapshots      *snapshot.Service
 }
 
 type Config struct {
 	Ingress         workspace.IngressConfig
+	IngressHost     string
 	SnapshotEnabled bool
 	IdleTimeout     int
 }
@@ -34,6 +42,7 @@ type Config struct {
 func New(
 	cfg Config,
 	k8s kubernetes.Interface,
+	dynamic dynamic.Interface,
 	rmqCh *amqp.Channel,
 	snapshots *snapshot.Service,
 	publisher *workspace.Publisher,
@@ -43,6 +52,7 @@ func New(
 	mgr := &Manager{
 		cfg:       cfg,
 		k8s:       k8s,
+		dynamic:   dynamic,
 		consumer:  consumer,
 		publisher: publisher,
 		snapshots: snapshots,
@@ -66,6 +76,82 @@ func (m *Manager) Start(ctx context.Context) error {
 
 func (m *Manager) handleCreate(ctx context.Context, event workspace.Event) error {
 	slog.Info("workspace create event", "workspace_id", event.WorkspaceID)
+
+	var wsData api.Workspace
+	if err := json.Unmarshal(event.Payload, &wsData); err != nil {
+		return fmt.Errorf("failed to unmarshal workspace payload: %w", err)
+	}
+
+	p := make([]operator.PortRule, len(wsData.Ports))
+	for i, port := range wsData.Ports {
+		p[i] = operator.PortRule{
+			Port:      port.Port,
+			Protocol:  port.Protocol,
+			Subdomain: port.Subdomain,
+		}
+	}
+
+	wsOperator := &operator.Workspace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: operator.APIVersion,
+			Kind:       operator.Kind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      wsData.Name,
+			Namespace: "default",
+			Labels: map[string]string{
+				operator.LabelWorkspaceID: wsData.ID.String(),
+				operator.LabelUserID:      wsData.UserID.String(),
+			},
+		},
+		Spec: operator.WorkspaceSpec{
+			UserID:  wsData.UserID.String(),
+			Image:   wsData.Image,
+			RepoURL: wsData.RepoURL,
+			Branch:  wsData.Branch,
+			Resources: struct {
+				CPU    string `json:"cpu"`
+				Memory string `json:"memory"`
+				Disk   string `json:"disk"`
+				GPU    int    `json:"gpu,omitempty"`
+			}{
+				CPU:    wsData.Resources.CPU,
+				Memory: wsData.Resources.Memory,
+				Disk:   wsData.Resources.Disk,
+				GPU:    wsData.Resources.GPU,
+			},
+			Ingress: struct {
+				Enabled bool               `json:"enabled"`
+				Host    string             `json:"host,omitempty"`
+				Ports   []operator.PortRule `json:"ports,omitempty"`
+			}{
+				Enabled: true,
+				Host:    m.cfg.IngressHost,
+				Ports:   p,
+			},
+			Storage: struct {
+				Size         string `json:"size"`
+				StorageClass string `json:"storageClass,omitempty"`
+			}{
+				Size: wsData.Resources.Disk,
+			},
+		},
+	}
+
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(wsOperator)
+	if err != nil {
+		return fmt.Errorf("failed to convert to unstructured: %w", err)
+	}
+
+	u := &unstructured.Unstructured{Object: unstructuredObj}
+	_, err = m.dynamic.Resource(operator.SchemeGroupVersion.WithResource(operator.Plural)).
+		Namespace("default").
+		Create(ctx, u, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create workspace CRD: %w", err)
+	}
+
+	slog.Info("workspace CRD created", "workspace_id", event.WorkspaceID, "name", wsData.Name)
 	return nil
 }
 
