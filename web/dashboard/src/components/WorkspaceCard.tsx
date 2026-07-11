@@ -53,8 +53,19 @@ function WorkspaceCard({ workspace: ws, onStart, onStop, onDelete }: Props) {
             })}
           </p>
         </div>
-        <span className={`badge ${badgeClass[ws.status]}`}>{ws.status}</span>
+        <span className={`badge ${badgeClass[ws.status]}`}>{ws.status} </span>
       </div>
+
+      {ws.url && ws.status === 'running' && (
+        <a
+          href={ws.url}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='mb-2 block truncate text-[11px] text-neon underline underline-offset-2 hover:text-white/90'
+        >
+          {ws.url}
+        </a>
+      )}
 
       <div className='mb-3 space-y-2'>
         <div>
