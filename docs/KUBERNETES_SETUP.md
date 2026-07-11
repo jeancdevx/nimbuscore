@@ -86,16 +86,28 @@ kind load docker-image \
 
 ---
 
-## 3. RabbitMQ (imagen oficial)
+## 3. Servicios adicionales (RabbitMQ + Dex)
 
-Bitnami ya no publica imágenes `bitnami/rabbitmq` en Docker Hub. Desplegamos
-RabbitMQ aparte con la imagen oficial:
+Bitnami ya no publica imágenes `bitnami/rabbitmq` en Docker Hub, y Dex necesita
+correr en K8s para que el API lo alcance (no funciona via
+`host.docker.internal`):
 
 ```bash
+# RabbitMQ (imagen oficial)
 kubectl apply -f deploy/helm/standalone-rabbitmq.yaml
+
+# Dex (OIDC) — dentro de K8s
+kubectl apply -f deploy/helm/standalone-dex.yaml
+
+# Verificar que responden
+kubectl wait --for=condition=ready pod -l app=dex --timeout=60s
+kubectl wait --for=condition=ready pod -l app=rabbitmq --timeout=60s
+curl http://localhost:5556/dex/.well-known/openid-configuration
 ```
 
-Esto crea un deployment `rabbitmq` con usuario `user` / contraseña `changeme`.
+> Dex usa `dex:5556` como issuer interno (API→Dex) y `localhost:5556` como
+> issuer externo (browser→Dex). La API los maneja con `OIDC_ISSUER` y
+> `OIDC_EXTERNAL_ISSUER`.
 
 ---
 

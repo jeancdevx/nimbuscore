@@ -22,16 +22,16 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-| Componente                     | Stack      | Puerto                                   |
-| ------------------------------ | ---------- | ---------------------------------------- |
-| API (Chi)                      | K8s        | `:8080` (via port-forward)               |
-| Operator (controller-runtime)  | K8s        | — (pod interno)                          |
-| Workspace Manager              | K8s        | — (RabbitMQ consumer)                    |
-| Dashboard (Astro 7 + React 19) | Tu máquina | `:5173` (dev)                            |
-| PostgreSQL 17                  | K8s        | — (pod interno, subchart Bitnami)        |
-| Redis 7                        | K8s        | — (pod interno, subchart Bitnami)        |
-| RabbitMQ 4                     | K8s        | — (pod aparte con imagen oficial)        |
-| Dex (OIDC)                     | Docker     | `:5556` (corre fuera de K8s, en compose) |
+| Componente                     | Stack      | Puerto                                 |
+| ------------------------------ | ---------- | -------------------------------------- |
+| API (Chi)                      | K8s        | `:8080` (via port-forward)             |
+| Operator (controller-runtime)  | K8s        | — (pod interno)                        |
+| Workspace Manager              | K8s        | — (RabbitMQ consumer)                  |
+| Dashboard (Astro 7 + React 19) | Tu máquina | `:5173` (dev)                          |
+| PostgreSQL 17                  | K8s        | — (pod interno, subchart Bitnami)      |
+| Redis 7                        | K8s        | — (pod interno, subchart Bitnami)      |
+| RabbitMQ 4                     | K8s        | — (pod aparte con imagen oficial)      |
+| Dex (OIDC)                     | K8s        | `:5556` (local) → `dex:5556` (cluster) |
 
 ---
 
@@ -39,19 +39,20 @@
 
 ### Paso 1: Dex (OIDC)
 
-Dex corre fuera de K8s porque necesita ser accesible desde el browser en
+Dex corre dentro de K8s. Necesita ser accesible desde tu browser en
 `localhost:5556`:
 
 ```bash
-# Solo Dex, sin la API de compose
-docker compose up -d dex
-```
+# Dex se deploya con el Helm chart.
+# Si no está corriendo, deployalo manualmente:
+kubectl apply -f deploy/helm/standalone-dex.yaml
 
-Esperar a que Dex responda:
+# Esperar a que esté listo
+kubectl wait --for=condition=ready pod -l app=dex --timeout=60s
 
-```bash
+# Verificar que responde
 curl http://localhost:5556/dex/.well-known/openid-configuration
-# → {"issuer":"http://localhost:5556/dex", ...}
+# → {"issuer":"http://dex:5556/dex", ...}
 ```
 
 ### Paso 2: Kind + Helm
