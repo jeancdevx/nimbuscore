@@ -408,6 +408,7 @@ func (r *WorkspaceReconciler) buildPod(ws *nimbuscorev1alpha1.Workspace) *corev1
 					Image: ws.Spec.Image,
 					Ports: []corev1.ContainerPort{{ContainerPort: 8080}},
 					Env: []corev1.EnvVar{
+						{Name: "PASSWORD", Value: "nimbuscore"},
 						{Name: "NAMESPACE", Value: ws.Name},
 						{Name: "WORKSPACE_ID", Value: ws.Name},
 					},
