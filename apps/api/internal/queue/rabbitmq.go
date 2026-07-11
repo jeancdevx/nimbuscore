@@ -48,6 +48,10 @@ func (r *RabbitMQ) Channel() *amqp.Channel {
 	return r.channel
 }
 
+func (r *RabbitMQ) NewChannel() (*amqp.Channel, error) {
+	return r.conn.Channel()
+}
+
 func (r *RabbitMQ) Close() error {
 	if err := r.channel.Close(); err != nil {
 		return err
