@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/nimbuscore/apps/api/internal/cache"
+	"github.com/nimbuscore/apps/api/internal/handler"
 	"github.com/nimbuscore/apps/api/internal/queue"
 	"github.com/nimbuscore/apps/api/internal/server"
 	"github.com/nimbuscore/apps/api/internal/store"
@@ -61,7 +63,7 @@ func main() {
 
 	srv := server.New(cfg, db, rdb, rmq)
 
-	go startStatusConsumer(context.Background(), rmq, db)
+	go startStatusConsumer(context.Background(), rmq, rdb, db)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
@@ -98,9 +100,10 @@ func main() {
 
 func loadConfig() api.APIConfig {
 	return api.APIConfig{
-		Host:     getEnv("HOST", "0.0.0.0"),
-		Port:     getEnv("PORT", "8080"),
-		LogLevel: getEnv("LOG_LEVEL", "info"),
+		Host:        getEnv("HOST", "0.0.0.0"),
+		Port:        getEnv("PORT", "8080"),
+		LogLevel:    getEnv("LOG_LEVEL", "info"),
+		IngressHost: getEnv("INGRESS_HOST", "localhost"),
 		Database: api.DatabaseConfig{
 			URL:      getEnv("DATABASE_URL", "postgres://nimbuscore:nimbuscore@localhost:5432/nimbuscore?sslmode=disable"),
 			MaxConns: 25,
@@ -126,7 +129,7 @@ func loadConfig() api.APIConfig {
 	}
 }
 
-func startStatusConsumer(ctx context.Context, rmq *queue.RabbitMQ, db *pgxpool.Pool) {
+func startStatusConsumer(ctx context.Context, rmq *queue.RabbitMQ, rdb *redis.Client, db *pgxpool.Pool) {
 	consumerCh, err := rmq.NewChannel()
 	if err != nil {
 		slog.Error("failed to create consumer channel", "error", err)
@@ -145,6 +148,8 @@ func startStatusConsumer(ctx context.Context, rmq *queue.RabbitMQ, db *pgxpool.P
 			slog.Error("failed to update workspace status", "error", err, "workspace_id", event.WorkspaceID)
 			return err
 		}
+
+		handler.PublishWorkspaceStatus(ctx, rdb, event.WorkspaceID.String(), string(status))
 
 		slog.Info("workspace status updated", "workspace_id", event.WorkspaceID, "status", status)
 		return nil
