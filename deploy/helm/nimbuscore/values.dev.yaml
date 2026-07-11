@@ -8,9 +8,10 @@ ingress:
 config:
   logLevel: debug
   oidc:
-    issuer: http://host.docker.internal:5556/dex
+    issuer: http://dex:5556/dex
     clientId: nimbuscore
-    redirectUrl: http://nimbuscore.local/auth/callback
+    redirectUrl: http://localhost:5173
+    externalIssuer: http://localhost:5556/dex
   rabbitmq:
     url: amqp://user:changeme@rabbitmq:5672
   ingress:
