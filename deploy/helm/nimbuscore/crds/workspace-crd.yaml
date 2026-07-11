@@ -68,7 +68,16 @@ spec:
                     ports:
                       type: array
                       items:
-                        type: integer
+                        type: object
+                        required:
+                          - port
+                        properties:
+                          port:
+                            type: integer
+                          protocol:
+                            type: string
+                          subdomain:
+                            type: string
                 storage:
                   type: object
                   properties:
