@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,11 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nimbuscore/apps/api/internal/cache"
 	"github.com/nimbuscore/apps/api/internal/queue"
 	"github.com/nimbuscore/apps/api/internal/server"
 	"github.com/nimbuscore/apps/api/internal/store"
 	"github.com/nimbuscore/pkg/api"
+	"github.com/nimbuscore/pkg/workspace"
 )
 
 func main() {
@@ -57,6 +60,8 @@ func main() {
 	defer rmq.Close()
 
 	srv := server.New(cfg, db, rdb, rmq)
+
+	go startStatusConsumer(context.Background(), rmq, db)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
@@ -118,6 +123,35 @@ func loadConfig() api.APIConfig {
 			JWTSecret:      getEnv("JWT_SECRET", "change-me-in-production"),
 			SessionTTL:     24,
 		},
+	}
+}
+
+func startStatusConsumer(ctx context.Context, rmq *queue.RabbitMQ, db *pgxpool.Pool) {
+	consumerCh, err := rmq.NewChannel()
+	if err != nil {
+		slog.Error("failed to create consumer channel", "error", err)
+		return
+	}
+	consumer := workspace.NewConsumer(consumerCh, "nimbuscore.workspace", "api-status-updater")
+	consumer.Handle(workspace.EventWorkspaceStatusUpdate, func(ctx context.Context, event workspace.Event) error {
+		var payload workspace.StatusUpdatePayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			slog.Error("failed to unmarshal status update payload", "error", err)
+			return nil
+		}
+
+		status := api.WorkspaceStatus(payload.Status)
+		if err := store.UpdateWorkspaceStatus(ctx, db, event.WorkspaceID, status); err != nil {
+			slog.Error("failed to update workspace status", "error", err, "workspace_id", event.WorkspaceID)
+			return err
+		}
+
+		slog.Info("workspace status updated", "workspace_id", event.WorkspaceID, "status", status)
+		return nil
+	})
+
+	if err := consumer.Start(ctx); err != nil {
+		slog.Error("status consumer exited", "error", err)
 	}
 }
 
