@@ -51,6 +51,8 @@ func (s *Server) Routes() http.Handler {
 		r.Use(auditMiddleware)
 		r.Use(middleware.RBACInjector)
 
+		r.Get("/events", h.EventStream)
+
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/", h.ListUsers)
 			r.Get("/me", h.GetCurrentUser)
