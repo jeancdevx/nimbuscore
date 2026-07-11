@@ -145,7 +145,7 @@ func (r *WorkspaceReconciler) handleBuilding(ctx context.Context, ws *nimbuscore
 	ws.Status.Phase = "running"
 	ws.Status.Message = "workspace is running"
 	ws.Status.PodName = pod.Name
-	ws.Status.URL = fmt.Sprintf("https://%s.%s", ws.Name, r.IngressHost)
+	ws.Status.URL = fmt.Sprintf("http://%s.%s", ws.Name, r.IngressHost)
 	ws.Status.PortURLs = portURLs
 	if err := r.Status().Update(ctx, ws); err != nil {
 		return reconcile.Result{}, err
@@ -208,7 +208,10 @@ func (r *WorkspaceReconciler) cleanupWorkspace(ctx context.Context, ws *nimbusco
 }
 
 func (r *WorkspaceReconciler) buildPVC(ws *nimbuscorev1alpha1.Workspace) *corev1.PersistentVolumeClaim {
-	storageClass := ws.Spec.Storage.StorageClass
+	var storageClass *string
+	if ws.Spec.Storage.StorageClass != "" {
+		storageClass = &ws.Spec.Storage.StorageClass
+	}
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ws.Name + "-home",
@@ -217,7 +220,7 @@ func (r *WorkspaceReconciler) buildPVC(ws *nimbuscorev1alpha1.Workspace) *corev1
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			StorageClassName: &storageClass,
+			StorageClassName: storageClass,
 			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: resource.MustParse(ws.Spec.Resources.Disk),
@@ -271,7 +274,7 @@ func (r *WorkspaceReconciler) buildPortIngresses(ctx context.Context, ws *nimbus
 		}
 
 		host := fmt.Sprintf("%s-%s.%s", rule.Subdomain, ws.Name, r.IngressHost)
-		portURLs[rule.Port] = fmt.Sprintf("https://%s", host)
+		portURLs[rule.Port] = fmt.Sprintf("http://%s", host)
 
 		ing := &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
