@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -23,9 +24,21 @@ func main() {
 
 	cfg := loadConfig()
 
-	k8sClient, err := newK8sClient()
+	k8sConfig, err := rest.InClusterConfig()
+	if err != nil {
+		slog.Error("failed to create k8s config", "error", err)
+		os.Exit(1)
+	}
+
+	k8sClient, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		slog.Error("failed to create k8s client", "error", err)
+		os.Exit(1)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(k8sConfig)
+	if err != nil {
+		slog.Error("failed to create dynamic client", "error", err)
 		os.Exit(1)
 	}
 
@@ -51,10 +64,11 @@ func main() {
 
 	mgrCfg := manager.Config{
 		Ingress:         cfg.Ingress,
+		IngressHost:     cfg.Ingress.Host,
 		SnapshotEnabled: cfg.Snapshot.Enabled,
 		IdleTimeout:     cfg.IdleTimeout,
 	}
-	mgr := manager.New(mgrCfg, k8sClient, rmqCh, snapshotSvc, eventPublisher)
+	mgr := manager.New(mgrCfg, k8sClient, dynamicClient, rmqCh, snapshotSvc, eventPublisher)
 
 	idlWatcher := watcher.NewIdleWatcher(k8sClient, eventPublisher, cfg.IdleTimeout)
 	go idlWatcher.Start(ctx)
@@ -68,14 +82,6 @@ func main() {
 		slog.Error("manager exited", "error", err)
 		os.Exit(1)
 	}
-}
-
-func newK8sClient() (*kubernetes.Clientset, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, err
-	}
-	return kubernetes.NewForConfig(config)
 }
 
 type appConfig struct {
