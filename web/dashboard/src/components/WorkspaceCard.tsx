@@ -96,7 +96,24 @@ function WorkspaceCard({ workspace: ws, onStart, onStop, onDelete }: Props) {
       </div>
 
       {ws.repo_url && (
-        <p className='mb-3 truncate text-[11px] text-white/30'>{ws.repo_url}</p>
+        <p className='mb-2 truncate text-[11px] text-white/30'>{ws.repo_url}</p>
+      )}
+
+      {ws.ports && ws.ports.length > 0 && (
+        <div className='mb-3 space-y-1'>
+          {ws.ports.map((p, i) => (
+            <div
+              key={i}
+              className='flex items-center gap-2 text-[11px] text-white/50'
+            >
+              <span className='text-neon'>●</span>
+              <span>
+                {p.subdomain ? `${p.subdomain} → ` : ''}
+                {p.port}/{p.protocol.toUpperCase()}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className='flex gap-2'>
