@@ -34,6 +34,12 @@ export interface WorkspaceResources {
   gpu?: number
 }
 
+export interface PortMapping {
+  port: number
+  protocol: string
+  subdomain?: string
+}
+
 export interface Workspace {
   id: string
   name: string
@@ -44,7 +50,7 @@ export interface Workspace {
   resources: WorkspaceResources
   repo_url?: string
   branch?: string
-  ports?: number[]
+  ports?: PortMapping[]
   last_activity?: string
   created_at: string
   updated_at: string
