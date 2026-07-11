@@ -58,7 +58,25 @@ curl http://localhost:5556/dex/.well-known/openid-configuration
 
 ```bash
 # Crear cluster kind (si no existe)
-kind create cluster --config kind-config.yaml 2>/dev/null || true
+cat <<EOF | kind create cluster --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - hostPort: 80
+        containerPort: 80
+        protocol: TCP
+      - hostPort: 443
+        containerPort: 443
+        protocol: TCP
+EOF
 
 # NGINX Ingress Controller
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
