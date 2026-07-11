@@ -17,7 +17,7 @@ data:
         redirectURIs:
           - http://localhost:5173
         name: NimbusCore
-        secret: nimbuscore-secret
+        secret: dev-oidc-secret
     oauth2:
       skipApprovalScreen: true
     enablePasswordDB: true
