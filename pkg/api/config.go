@@ -1,9 +1,10 @@
 package api
 
 type APIConfig struct {
-	Host     string
-	Port     string
-	LogLevel string
+	Host         string
+	Port         string
+	LogLevel     string
+	IngressHost  string
 
 	Database DatabaseConfig
 	Redis    RedisConfig
