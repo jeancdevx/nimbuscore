@@ -161,7 +161,8 @@ body {
 
 .btn-neon {
   background: var(--color-neon-dim);
-  color: #050d08;
+  color: #c4ffdb;
+  font-weight: 600;
   border-color: var(--color-neon);
 }
 
@@ -310,7 +311,7 @@ body {
 }
 
 .modal-card {
-  width: min(28rem, 100%);
+  width: min(35rem, 100%);
   border-radius: 1rem;
   border: 1px solid rgb(74 222 128 / 0.35);
   background: linear-gradient(
