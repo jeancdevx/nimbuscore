@@ -79,6 +79,7 @@ func (m *Manager) handleCreate(ctx context.Context, event workspace.Event) error
 
 	var wsData api.Workspace
 	if err := json.Unmarshal(event.Payload, &wsData); err != nil {
+		slog.Error("payload unmarshal failed", "error", err, "payload", string(event.Payload))
 		return fmt.Errorf("failed to unmarshal workspace payload: %w", err)
 	}
 
@@ -93,7 +94,7 @@ func (m *Manager) handleCreate(ctx context.Context, event workspace.Event) error
 
 	wsOperator := &operator.Workspace{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: operator.APIVersion,
+			APIVersion: operator.GroupName + "/" + operator.APIVersion,
 			Kind:       operator.Kind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -148,11 +149,58 @@ func (m *Manager) handleCreate(ctx context.Context, event workspace.Event) error
 		Namespace("default").
 		Create(ctx, u, metav1.CreateOptions{})
 	if err != nil {
+		slog.Error("CRD creation failed", "error", err, "workspace_id", event.WorkspaceID)
 		return fmt.Errorf("failed to create workspace CRD: %w", err)
 	}
 
 	slog.Info("workspace CRD created", "workspace_id", event.WorkspaceID, "name", wsData.Name)
+
+	m.publishStatus(ctx, event.WorkspaceID, event.UserID, "building")
+
+	go m.watchCRDStatus(ctx, event.WorkspaceID, event.UserID, wsData.Name)
 	return nil
+}
+
+func (m *Manager) publishStatus(ctx context.Context, workspaceID, userID uuid.UUID, status string) {
+	payload, _ := json.Marshal(workspace.StatusUpdatePayload{Status: status})
+	event := workspace.Event{
+		ID:          uuid.New(),
+		Type:        workspace.EventWorkspaceStatusUpdate,
+		WorkspaceID: workspaceID,
+		UserID:      userID,
+		Payload:     payload,
+		Timestamp:   time.Now().UTC(),
+	}
+	if err := m.publisher.Publish(ctx, event); err != nil {
+		slog.Warn("failed to publish status update", "error", err, "workspace_id", workspaceID)
+	}
+}
+
+func (m *Manager) watchCRDStatus(ctx context.Context, workspaceID, userID uuid.UUID, name string) {
+	resource := m.dynamic.Resource(operator.SchemeGroupVersion.WithResource(operator.Plural))
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		u, err := resource.Namespace("default").Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			slog.Warn("failed to get CRD for status watch", "error", err, "workspace_id", workspaceID)
+			continue
+		}
+
+		status, found, err := unstructured.NestedString(u.Object, "status", "phase")
+		if err != nil || !found {
+			continue
+		}
+
+		slog.Info("CRD status update", "workspace_id", workspaceID, "phase", status)
+
+		m.publishStatus(ctx, workspaceID, userID, status)
+
+		if status == "running" || status == "error" || status == "stopped" {
+			return
+		}
+	}
 }
 
 func (m *Manager) handleStart(ctx context.Context, event workspace.Event) error {
