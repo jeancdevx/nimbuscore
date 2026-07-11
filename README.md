@@ -1,5 +1,6 @@
 <div align="center">
   <h1>NimbusCore</h1>
+  <img src="./.github/logo.png" alt="NimbusCore Logo" width="100%" height="auto">
   <p><strong>Plataforma self-hosted de DevContainers on-demand sobre Kubernetes.</strong></p>
   <p>Como GitHub Codespaces, pero corriendo en tu propia infraestructura.</p>
   <br>
