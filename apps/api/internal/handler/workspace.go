@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -23,6 +24,12 @@ type createWorkspaceInput struct {
 	Resources api.WorkspaceResources `json:"resources"`
 }
 
+func setWorkspaceURL(ws *api.Workspace, ingressHost string) {
+	if ws.URL == "" && ingressHost != "" {
+		ws.URL = fmt.Sprintf("http://%s.%s", ws.Name, ingressHost)
+	}
+}
+
 func (h *Handler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 	claims := auth.GetClaims(r.Context())
 	if claims == nil {
@@ -34,6 +41,10 @@ func (h *Handler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	for i := range workspaces {
+		setWorkspaceURL(&workspaces[i], h.cfg.IngressHost)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -118,6 +129,8 @@ func (h *Handler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "workspace not found", http.StatusNotFound)
 		return
 	}
+
+	setWorkspaceURL(ws, h.cfg.IngressHost)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ws)
