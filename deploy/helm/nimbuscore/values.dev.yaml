@@ -11,6 +11,8 @@ config:
     issuer: http://host.docker.internal:5556/dex
     clientId: nimbuscore
     redirectUrl: http://nimbuscore.local/auth/callback
+  rabbitmq:
+    url: amqp://user:changeme@rabbitmq:5672
   ingress:
     host: nimbuscore.local
 
@@ -38,6 +40,8 @@ postgresql:
   primary:
     persistence:
       size: 5Gi
+    initdb:
+      scriptsConfigMap: nimbuscore-db-init
 
 redis:
   enabled: true
@@ -48,15 +52,7 @@ redis:
       size: 2Gi
 
 rabbitmq:
-  enabled: true
+  enabled: false
   auth:
     username: user
     password: changeme
-  image:
-    registry: docker.io
-    repository: bitnami/rabbitmq
-    tag: 4.0.5-debian-12-r7
-  initContainerImage:
-    registry: docker.io
-    repository: bitnami/rabbitmq
-    tag: 4.0.5-debian-12-r7
