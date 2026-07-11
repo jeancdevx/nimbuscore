@@ -1,25 +1,32 @@
 # NimbusCore — Kubernetes Setup
 
-## Opciones de cluster local
-
-Elegí una según tu sistema:
-
-| Herramienta  | Recursos | Ideal para                          |
-| ------------ | -------- | ----------------------------------- |
-| **kind**     | ~500 MB  | Dev liviano, reinicio rápido        |
-| **minikube** | ~2 GB    | Dev con addons (ingress, dashboard) |
-| **k3d**      | ~500 MB  | Similar a kind, pero con k3s        |
-| **k3s**      | ~300 MB  | Cluster "real" en VM o bare-metal   |
+Guía paso a paso para levantar NimbusCore completo en kind.
 
 ---
 
-## 1. Kind (recomendado para dev)
+## 0. Prerequisitos
 
 ```bash
-# Instalar kind
-go install sigs.k8s.io/kind@latest
+# Herramientas necesarias
+docker --version
+kind --version          # go install sigs.k8s.io/kind@latest
+kubectl --version       # o instalar con mise: mise install kubectl
+helm --version          # mise install helm o brew install helm
+mise --version
+```
 
-# Crear cluster con ingress
+Activar mise:
+
+```bash
+eval "$(mise activate zsh)"
+```
+
+---
+
+## 1. Crear cluster kind con Ingress
+
+```bash
+# Crear cluster con puertos 80/443 mapeados
 cat <<EOF | kind create cluster --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -43,36 +50,62 @@ EOF
 # Instalar NGINX Ingress Controller
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 
-# Verificar
+# Esperar a que esté listo
 kubectl wait --namespace ingress-nginx \
   --for=condition=ready pod \
   --selector=app.kubernetes.io/component=controller \
-  --timeout=90s
-```
-
-## 2. Instalar dependencias del cluster
-
-```bash
-# CRDs de NimbusCore
-kubectl apply -f deploy/helm/nimbuscore/crds/
-
-# Cert-manager (para TLS en ingresses)
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.1/cert-manager.yaml
-
-# Metric Server (para HPA)
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+  --timeout=120s
 ```
 
 ---
 
-## 3. Deploy NimbusCore con Helm
+## 2. Construir imágenes custom y cargarlas en kind
+
+Las imágenes `ghcr.io/nimbuscore/*` no existen en ningún registry. Hay que
+construirlas localmente:
 
 ```bash
-# Agregar repositorios
-helm repo add bitnami https://charts.bitnami.com/bitnami
+docker build -f deploy/Dockerfile.api -t ghcr.io/nimbuscore/nimbuscore-api:latest .
+docker build -f deploy/Dockerfile.operator -t ghcr.io/nimbuscore/nimbuscore-operator:latest .
+docker build -f deploy/Dockerfile.workspace-manager -t ghcr.io/nimbuscore/nimbuscore-workspace-manager:latest .
+
+kind load docker-image \
+  ghcr.io/nimbuscore/nimbuscore-api:latest \
+  ghcr.io/nimbuscore/nimbuscore-operator:latest \
+  ghcr.io/nimbuscore/nimbuscore-workspace-manager:latest
+```
+
+> **Cada vez que cambies código en apps/api, apps/operator o
+> apps/workspace-manager**:
+>
+> ```bash
+> docker build -f deploy/Dockerfile.<app> -t ghcr.io/nimbuscore/nimbuscore-<app>:latest .
+> kind load docker-image ghcr.io/nimbuscore/nimbuscore-<app>:latest
+> kubectl rollout restart deployment nimbuscore-<app>
+> ```
+
+---
+
+## 3. RabbitMQ (imagen oficial)
+
+Bitnami ya no publica imágenes `bitnami/rabbitmq` en Docker Hub. Desplegamos
+RabbitMQ aparte con la imagen oficial:
+
+```bash
+kubectl apply -f deploy/helm/standalone-rabbitmq.yaml
+```
+
+Esto crea un deployment `rabbitmq` con usuario `user` / contraseña `changeme`.
+
+---
+
+## 4. Instalar NimbusCore con Helm
+
+```bash
+# Actualizar dependencias (postgresql, redis)
 helm dependency update deploy/helm/nimbuscore/
 
-# Instalar (dev) — usar upgrade --install para ser idempotente
+# Instalar (upgrade --install es idempotente)
 helm upgrade --install nimbuscore deploy/helm/nimbuscore \
   --values deploy/helm/nimbuscore/values.dev.yaml \
   --set secrets.jwt="dev-jwt-secret" \
@@ -80,241 +113,136 @@ helm upgrade --install nimbuscore deploy/helm/nimbuscore \
   --set secrets.resticPassword="dev-restic-password" \
   --set global.ingress.host="nimbuscore.local"
 
-# Verificar
-kubectl get pods -A | grep nimbuscore
-kubectl get svc -A | grep nimbuscore
-kubectl get ingress -A | grep nimbuscore
+# Verificar que todo está Running
+kubectl get pods -n default
 ```
 
-> **Nota para kind**: Agregá `127.0.0.1 nimbuscore.local` a `/etc/hosts`. El
-> ingress escucha en `localhost:80`.
+Deberías ver (puede tardar 30s en estabilizarse):
 
-> **ServiceMonitor**: Si no tenés Prometheus Operator instalado, usá
-> `--set monitoring.serviceMonitor.enabled=false` o asegurate de que
-> `values.dev.yaml` lo tenga deshabilitado (ya incluido por defecto en dev).
+```
+nimbuscore-api-*                   1/1     Running
+nimbuscore-operator-*              1/1     Running
+nimbuscore-postgresql-0            1/1     Running
+nimbuscore-redis-master-0          1/1     Running
+nimbuscore-redis-replicas-*        1/1     Running
+nimbuscore-workspace-manager-*     1/1     Running
+rabbitmq-*                         1/1     Running
+```
+
+> **Si ves `ImagePullBackOff`**: puede que las imágenes no se cargaron bien en
+> kind. Repetí el paso 2 y luego
+> `kubectl rollout restart deployment nimbuscore-api nimbuscore-operator nimbuscore-workspace-manager`
 
 ---
 
-## 4. Operator — ciclo de vida de workspaces
+## 5. Exponer la API localmente
 
-El operator es el cerebro que reconcilia workspaces contra Kubernetes:
-
-### Flujo completo
-
-```
-POST /api/workspaces  ──→  DB (status: pending)
-                              │
-                    Operator detecta nuevo Workspace CR
-                              │
-                    ├── Crea Namespace (si no existe)
-                    ├── Crea Pod con DevContainer
-                    ├── Crea Service (ClusterIP)
-                    └── Crea Ingress (subdominio por puerto)
-                              │
-                    Status → running
-                              │
-                    POST /stop ──→ status → stopping
-                              │
-                    Operator elimina Pod + Service + Ingress
-                              │
-                    Status → stopped
-```
-
-### Ver estado de los CRDs
+La API corre dentro del cluster como `ClusterIP`. Para acceder desde tu máquina:
 
 ```bash
-# Listar workspaces
-kubectl get workspaces -A
-kubectl get ws -A
+# Opción A: port-forward (recomendado para dev)
+kubectl port-forward svc/nimbuscore-api 8080:80
 
-# Ver detalle de un workspace
-kubectl describe ws -n <namespace> <workspace-name>
-
-# Listar prebuilds
-kubectl get prebuilds -A
-kubectl get pb -A
-
-# Ver pods creados para workspaces
-kubectl get pods -l app.kubernetes.io/component=workspace
+# Opción B: Ingress + /etc/hosts
+echo "127.0.0.1 api.dev.nimbuscore.io" | sudo tee -a /etc/hosts
+# Ahora http://api.dev.nimbuscore.io → API
 ```
 
-### Ejecutar operator local (fuera del cluster)
-
-```bash
-cd apps/operator && go run ./cmd/
-```
-
-El operator usa el `~/.kube/config` actual. No requiere deploy en el cluster
-para dev.
+> Usá el port-forward (Opción A). El Ingress se usa para los workspaces
+> (subdominios), no para la API en dev.
 
 ---
 
-## 5. Port forwarding en Kubernetes
-
-Al crear un workspace con puertos:
-
-```json
-{
-  "ports": [
-    { "port": 3000, "protocol": "tcp", "subdomain": "app" },
-    { "port": 5173, "protocol": "tcp", "subdomain": "vite" }
-  ]
-}
-```
-
-El operator crea un Ingress por cada puerto con el patrón:
-
-```
-{subdomain}-{workspace}.nimbuscore.local
-```
-
-Ejemplo:
-
-- `app-mi-dev-container.nimbuscore.local` → :3000
-- `vite-mi-dev-container.nimbuscore.local` → :5173
-
-Los podés ver en `status.port_urls` del Workspace CR:
+## 6. Opcional: Dashboard (Astro frontend)
 
 ```bash
-kubectl get ws <name> -o jsonpath='{.status.port_urls}'
+cd web/dashboard
+pnpm install
+pnpm dev   # → http://localhost:5173
+```
+
+El `astro.config.mjs` ya tiene proxy de `/api` → `http://localhost:8080`.
+
+---
+
+## 7. Verificar que el sistema funciona
+
+```bash
+# Health check de la API
+curl -s http://localhost:8080/health
+# → {"status":"ok"}
+
+# Ver workspaces CRD
+kubectl get workspaces.nimbuscore.io -A
+
+# Ver logs del workspace-manager
+kubectl logs -l app.kubernetes.io/component=workspace-manager --tail 20
+
+# Ver logs del operator
+kubectl logs -l app.kubernetes.io/component=operator --tail 20
 ```
 
 ---
 
-## 6. Snapshots (Restic)
+## 8. Crear un workspace
 
-Los snapshots usan Restic ejecutado dentro del workspace-manager via
-`kubectl exec`:
+1. Abrir `http://localhost:5173`
+2. Login con Dex: `admin@nimbuscore.io` / `admin123`
+3. Click **"NEW WORKSPACE"**
+4. Llenar formulario y crear
 
-```bash
-# Backup manual
-curl -X POST /api/workspaces/{id}/snapshots \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"action":"backup"}'
-
-# Restore
-curl -X POST /api/workspaces/{id}/snapshots/{snap_id}/restore \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Requisitos:
-
-- Bucket S3 configurado (MinIO para dev, AWS S3 para prod)
-- `RESTIC_REPOSITORY` y `RESTIC_PASSWORD` configurados en el workspace-manager
-
-### Snapshots automáticos (idle watcher)
-
-El workspace-manager ejecuta un scheduler que:
-
-1. Cada `SNAPSHOT_INTERVAL` (default 60 min) hace backup si el workspace está
-   `running`
-2. Al hacer `stop`, hace backup automático antes de eliminar el pod
-
----
-
-## 7. Prebuilds
-
-Los prebuilds construyen imágenes DevContainer con jobs de Kubernetes:
+O por curl:
 
 ```bash
-# Crear prebuild via API
-curl -X POST /api/prebuilds \
+# Obtener token (ver RUNBOOK.md para flujo completo)
+TOKEN="<jwt>"
+
+curl -s -X POST http://localhost:8080/api/workspaces \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "mi-prebuild",
-    "image": "ghcr.io/nimbuscore/prebuilds/mi-prebuild:latest",
-    "repo_url": "https://github.com/mi-user/mi-repo",
-    "branch": "main",
-    "devcontainer_path": ".devcontainer/devcontainer.json"
-  }'
-
-# Ver estado
-kubectl get jobs -l app.kubernetes.io/component=prebuild
-kubectl logs -l job-name=<prebuild-job-name>
+    "name": "mi-dev",
+    "image": "codercom/code-server:latest",
+    "resources": { "cpu": "1", "memory": "2Gi", "disk": "10Gi" },
+    "ports": [
+      {"port": 3000, "protocol": "http", "subdomain": "app"}
+    ]
+  }' | jq
 ```
 
-> El prebuild **no** construye la imagen en k8s — CI/CD se encarga de eso. El
-> operator crea un Job `batch/v1` que clona el repo y copia el
-> `devcontainer.json`.
+El flujo completo es:
+
+```
+POST /api/workspaces
+  → API guarda en PostgreSQL (status: pending)
+  → API publica evento "workspace.create" en RabbitMQ
+    → workspace-manager recibe el evento
+      → workspace-manager crea Workspace CRD en K8s
+        → operator detecta el CRD
+          → Crea Namespace
+          → Crea PVC
+          → Crea Service (puerto 80→8080 + puertos extra)
+          → Crea Pod (code-server + git init)
+          → Crea Ingress principal (nombre.nimbuscore.local)
+          → Crea Ingress por cada puerto con subdominio
+          → Status → "running"
+```
+
+Para ver el estado del CRD:
+
+```bash
+kubectl get workspaces.nimbuscore.io -A
+kubectl describe workspace mi-dev
+```
 
 ---
 
-## 8. Auto-stop y quotas
-
-### Idle timeout
-
-El workspace-manager tiene un watcher que periódicamente:
+## 9. Limpieza
 
 ```bash
-# Configuración vía env vars
-IDLE_TIMEOUT=20              # minutos sin actividad antes de stop
-SNAPSHOT_INTERVAL=60         # minutos entre snapshots automáticos
-IDLE_CHECK_INTERVAL=5        # minutos entre chequeos
-```
-
-Marca workspaces con la anotación `nimbuscore.io/last-activity` y detiene los
-que superan `IDLE_TIMEOUT`.
-
-### Quotas por team
-
-```bash
-# Ver quota de un team
-curl -s /api/teams/{id}/quota -H "Authorization: Bearer $TOKEN"
-
-# Crear/actualizar quota
-curl -X PUT /api/teams/{id}/quota \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"max_workspaces": 5, "max_cpu": "8", "max_memory": "16Gi"}'
-
-# Verificar si hay cupo antes de crear
-curl -s /api/teams/{id}/quota/check -H "Authorization: Bearer $TOKEN"
-```
-
-La API rechaza creación de workspace con `409 Conflict` si se excede
-`max_workspaces`.
-
----
-
-## 9. Multi-cluster
-
-Registrar clusters adicionales via API:
-
-```bash
-# Registrar cluster
-curl -X POST /api/admin/clusters \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "prod-us-east",
-    "api_endpoint": "https://k8s-prod.example.com",
-    "region": "us-east-1",
-    "provider": "eks"
-  }'
-
-# Listar clusters
-curl /api/admin/clusters -H "Authorization: Bearer $TOKEN"
-
-# Eliminar cluster
-curl -X DELETE /api/admin/clusters/{id} -H "Authorization: Bearer $TOKEN"
-```
-
-Los clusters se almacenan en la tabla `clusters` de PostgreSQL. El operator
-determina en qué cluster crear cada workspace según etiquetas (labels).
-
----
-
-## 10. Limpieza
-
-```bash
-# Eliminar todo lo de NimbusCore
+# Eliminar todo
 helm uninstall nimbuscore
-
-# Eliminar CRDs
 kubectl delete crd workspaces.nimbuscore.io
 kubectl delete crd prebuilds.nimbuscore.io
-
-# Eliminar cluster kind
 kind delete cluster
 ```
