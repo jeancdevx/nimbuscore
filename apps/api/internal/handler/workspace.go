@@ -87,11 +87,13 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	payload, _ := json.Marshal(ws)
 	event := workspace.Event{
 		ID:          uuid.New(),
 		Type:        workspace.EventWorkspaceCreate,
 		WorkspaceID: ws.ID,
 		UserID:      claims.UserID,
+		Payload:     payload,
 		Timestamp:   time.Now().UTC(),
 	}
 	if h.rmq != nil {
