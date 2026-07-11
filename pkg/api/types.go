@@ -147,6 +147,7 @@ type Workspace struct {
 	RepoURL      string             `json:"repo_url,omitempty"`
 	Branch       string             `json:"branch,omitempty"`
 	Ports        []PortMapping      `json:"ports,omitempty"`
+	URL          string             `json:"url,omitempty"`
 	LastActivity *time.Time         `json:"last_activity,omitempty"`
 	CreatedAt    time.Time          `json:"created_at"`
 	UpdatedAt    time.Time          `json:"updated_at"`
