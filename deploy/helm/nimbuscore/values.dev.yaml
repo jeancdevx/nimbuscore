@@ -15,7 +15,7 @@ config:
   rabbitmq:
     url: amqp://user:changeme@rabbitmq:5672
   ingress:
-    host: nimbuscore.local
+    host: localhost
 
 monitoring:
   serviceMonitor:
