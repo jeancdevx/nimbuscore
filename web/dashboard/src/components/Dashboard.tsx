@@ -28,6 +28,26 @@ function Dashboard() {
 
   useEffect(() => {
     load()
+
+    const token = api.getToken()
+    const evtSource = new EventSource('/api/events?token=' + token)
+
+    evtSource.addEventListener('workspace.status', e => {
+      try {
+        const { id, status } = JSON.parse(e.data)
+        setWorkspaces(prev =>
+          prev.map(ws => (ws.id === id ? { ...ws, status } : ws))
+        )
+      } catch {
+        // ignore
+      }
+    })
+
+    evtSource.onerror = () => {
+      evtSource.close()
+    }
+
+    return () => evtSource.close()
   }, [load])
 
   const handleCreate = async (data: Partial<Workspace>) => {
