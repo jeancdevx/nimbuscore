@@ -51,6 +51,7 @@ export interface Workspace {
   repo_url?: string
   branch?: string
   ports?: PortMapping[]
+  url?: string
   last_activity?: string
   created_at: string
   updated_at: string
