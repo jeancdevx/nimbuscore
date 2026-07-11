@@ -19,8 +19,9 @@ const (
 	EventWorkspaceBuild     EventType = "workspace.build"
 	EventWorkspaceSnapshot  EventType = "workspace.snapshot"
 	EventWorkspaceTimeout   EventType = "workspace.timeout"
-	EventWorkspacePrebuild  EventType = "workspace.prebuild"
-	EventWorkspaceReconnect EventType = "workspace.reconnect"
+	EventWorkspacePrebuild      EventType = "workspace.prebuild"
+	EventWorkspaceReconnect     EventType = "workspace.reconnect"
+	EventWorkspaceStatusUpdate  EventType = "workspace.status.update"
 )
 
 type Event struct {
@@ -30,6 +31,10 @@ type Event struct {
 	UserID      uuid.UUID       `json:"user_id"`
 	Payload     json.RawMessage `json:"payload,omitempty"`
 	Timestamp   time.Time       `json:"timestamp"`
+}
+
+type StatusUpdatePayload struct {
+	Status string `json:"status"`
 }
 
 type Publisher struct {
