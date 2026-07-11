@@ -130,7 +130,7 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
             </div>
           </div>
 
-          <fieldset className='rounded-lg border border-white/5 bg-white/[0.02] p-3.5'>
+          <fieldset className='rounded-lg border border-white/5 bg-white/2 p-3.5'>
             <legend className='px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-white/25'>
               Resources
             </legend>
@@ -172,7 +172,7 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
             </div>
           </fieldset>
 
-          <fieldset className='rounded-lg border border-white/5 bg-white/[0.02] p-3.5'>
+          <fieldset className='rounded-lg border border-white/5 bg-white/2 p-3.5'>
             <legend className='px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-white/25'>
               Repository
             </legend>
@@ -197,7 +197,7 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
             </div>
           </fieldset>
 
-          <fieldset className='rounded-lg border border-white/5 bg-white/[0.02] p-3.5'>
+          <fieldset className='rounded-lg border border-white/5 bg-white/2 p-3.5'>
             <legend className='px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-white/25'>
               Ports
             </legend>
@@ -207,10 +207,10 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
                   {ports.map((p, i) => (
                     <div
                       key={i}
-                      className='flex items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-white/60'
+                      className='flex items-center justify-between rounded-md border border-white/6 bg-white/3 px-3 py-2 text-xs text-white/60'
                     >
                       <div className='flex items-center gap-2'>
-                        <span className='flex h-5 w-5 items-center justify-center rounded bg-neon-dim/10 text-[10px] text-neon'>
+                        <span className='flex h-5 w-8 items-center justify-center rounded bg-neon-dim/10 text-[10px] text-neon'>
                           {p.port}
                         </span>
                         <span className='font-medium text-white/80'>
@@ -246,7 +246,7 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
                 </div>
               )}
               <div className='flex flex-wrap items-end gap-2'>
-                <div className='min-w-0 flex-1 basis-[80px]'>
+                <div className='min-w-0 flex-1 basis-20'>
                   <label className='label'>Port</label>
                   <input
                     value={newPort}
@@ -258,7 +258,8 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
                     max='65535'
                   />
                 </div>
-                <div className='min-w-0 basis-[90px]'>
+
+                <div className='min-w-0 basis-22.5'>
                   <label className='label'>Protocol</label>
                   <select
                     value={newProtocol}
@@ -271,7 +272,8 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
                     <option value='udp'>UDP</option>
                   </select>
                 </div>
-                <div className='min-w-0 flex-1 basis-[120px]'>
+
+                <div className='min-w-0 flex-1 basis-30]'>
                   <label className='label'>Subdomain</label>
                   <input
                     value={newSubdomain}
@@ -280,11 +282,12 @@ function CreateWorkspace({ onSubmit, onClose }: Props) {
                     placeholder='optional'
                   />
                 </div>
+
                 <button
                   type='button'
                   onClick={addPort}
                   disabled={!newPort}
-                  className='btn btn-neon mb-[1px] px-3 py-[9px] text-xs disabled:opacity-30'
+                  className='btn btn-neon mb-1 px-4 text-white py-2.25 text-xs disabled:opacity-80'
                 >
                   Add
                 </button>
